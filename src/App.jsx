@@ -40,6 +40,10 @@ import {
   NICHE_CONFIGS 
 } from './mockData';
 
+// Backend URL configuration (Vite environment variables)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+
 // Web Audio API Helper
 const playAudioSfx = (type) => {
   try {
@@ -184,7 +188,7 @@ Your main tasks are:
     setUser(updatedUser);
     
     // Sync profile to backend Express server
-    fetch('${BACKEND_URL}/v1/business-profile', {
+    fetch(`${BACKEND_URL}/v1/business-profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedUser)
@@ -582,7 +586,7 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         // 1. Fetch leads from WhatsApp backend
-        const resLeads = await fetch('${BACKEND_URL}/v1/leads');
+        const resLeads = await fetch(`${BACKEND_URL}/v1/leads`);
         if (!resLeads.ok) return;
         const waLeads = await resLeads.json();
         
@@ -596,7 +600,7 @@ export default function App() {
         });
 
         // 2. Fetch appointments from WhatsApp backend
-        const resAppts = await fetch('${BACKEND_URL}/v1/appointments');
+        const resAppts = await fetch(`${BACKEND_URL}/v1/appointments`);
         if (!resAppts.ok) return;
         const waAppts = await resAppts.json();
         
@@ -2734,7 +2738,7 @@ Your main tasks are:
                   addActivity(`Updated business coordinates for ${updatedBusinessName}`, "success");
 
                   // Sync updated profile details to backend Express server
-                  fetch('${BACKEND_URL}/v1/business-profile', {
+                  fetch(`${BACKEND_URL}/v1/business-profile`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatedUser)
