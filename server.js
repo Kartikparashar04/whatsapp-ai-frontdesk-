@@ -149,22 +149,14 @@ app.post('/v1/webhooks', async (req, res) => {
           email: 'default@deskflow.com'
         };
 
-        // A. Generate reply using Gemini AI
-        let aiResponse = "Thank you for your message! Our AI assistant is configuring. How can we help you?";
+        // Process message, reply on WhatsApp, and save to CRM database in a single Gemini call
         if (aiClient) {
-          aiResponse = await generateAIResponse(userText, customerName, activeProfile);
-        } else {
-          console.warn('Gemini client not initialized, using placeholder reply.');
-        }
-
-        // B. Send the AI reply back to the customer on WhatsApp
-        await sendWhatsAppMessage(customerPhone, aiResponse);
-
-        // C. Parse the message for CRM leads/appointments in the background
-        if (aiClient) {
-          parseAndSaveCRM(userText, customerPhone, customerName, activeProfile).catch(err => {
-            console.error('Error running CRM background sync parser:', err.message);
+          processIncomingMessage(userText, customerPhone, customerName, activeProfile).catch(err => {
+            console.error('Error running combined AI message processor:', err.message);
           });
+        } else {
+          console.warn('Gemini client not initialized, sending fallback placeholder reply.');
+          await sendWhatsAppMessage(customerPhone, "Thank you for your message! Our AI assistant is configuring. How can we help you?");
         }
       }
       return res.status(200).send('EVENT_RECEIVED');
@@ -341,64 +333,36 @@ async function sendWhatsAppMessage(toPhone, textBody) {
 /**
  * Helper: Generate response using Gemini AI SDK with dynamic profile parameters
  */
-async function generateAIResponse(userMessage, customerName, profile) {
+/**
+ * Combined Helper: Generate response and extract CRM details in a single Gemini call
+ */
+async function processIncomingMessage(userMessage, customerPhone, customerName, profile) {
   try {
+    const today = new Date();
     const categoryLabel = profile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
     
-    console.log(`Generating dynamic AI response for ${profile.businessName} (Niche: ${profile.niche})...`);
+    console.log(`[AI Engine] Processing message from ${customerName} (${customerPhone}) for ${profile.businessName}...`);
 
-    const systemPrompt = `You are the primary AI Front Desk assistant for "${profile.businessName}", a premium ${categoryLabel} located at "${profile.businessAddress}".
-Your business contact phone number is ${profile.businessPhone} and website is ${profile.businessWebsite}.
-Your personality tone is ${profile.aiPersona} (always polite, helpful, and concise).
-
-Your tasks are:
-1. Greet the client (their name is ${customerName}).
-2. Assist them with slot bookings, clinic/salon services, price quotes, and locations.
-3. Keep responses friendly, helpful, and concise (strictly under 3 sentences).
-
-Customer's message: "${userMessage}"`;
-
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: systemPrompt }]
-        }
-      ]
-    });
-
-    return response.text;
-  } catch (error) {
-    console.error('Gemini AI Generation Error:', error.message);
-    return `Hi ${customerName}, thank you for contacting us. We received your message and will get back to you shortly!`;
-  }
-}
-
-/**
- * Helper: Background parsing of incoming messages to extract structured leads/appointments
- */
-async function parseAndSaveCRM(userMessage, customerPhone, customerName, profile) {
-  try {
-    console.log(`[CRM Parser] Scanning message from ${customerPhone} for structured data...`);
-    const today = new Date();
-    
-    const extractionPrompt = `You are a database extraction parser. Analyze this WhatsApp client query: "${userMessage}"
-From sender details: Name: "${customerName}", Phone: "${customerPhone}".
+    const combinedPrompt = `You are a front desk database parser and conversational agent.
+Analyze this WhatsApp client query: "${userMessage}"
+From sender: Name: "${customerName}", Phone: "${customerPhone}".
 Current date is: ${today.toDateString()} (Day: ${today.toLocaleDateString('en-US', { weekday: 'long' })}).
 
-Determine if the customer is:
-1. Requesting to book an appointment (e.g., booking a slot, scheduling, haircut on Monday 2pm).
-2. Providing lead details or showing interest (e.g. sharing their name, asking for services/prices).
+You are the AI Front Desk for "${profile.businessName}", a premium ${categoryLabel} located at "${profile.businessAddress}".
+Business contact: Phone: ${profile.businessPhone}, Website: ${profile.businessWebsite}.
+Your personality: ${profile.aiPersona} (always polite, helpful, and concise).
 
-For the date and time, if they specify a relative time (like "tomorrow at 5pm", "this Friday 11am", "Monday 10am"), compute the correct target date and time. Output it as a standard ISO date-time string (YYYY-MM-DDTHH:MM:SS format, assume year is 2026). If it is too vague, fallback to a readable string.
+Tasks:
+1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
+2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
 
 You MUST reply ONLY with a valid JSON block matching this exact structure, do not wrap it in anything else, do not include markdown blocks:
 {
+  "reply": "conversational reply under 3 sentences to send to WhatsApp",
   "isBooking": true/false,
   "isLead": true/false,
-  "customerName": "extracted name or fallback to customerName",
-  "service": "extracted service name (e.g. Dental Cleaning, Teeth Whitening, Haircut, Styling) or null",
+  "customerName": "extracted customer name or fallback",
+  "service": "extracted service name (e.g. Teeth Cleaning, Haircut) or null",
   "dateTime": "computed YYYY-MM-DDTHH:MM:SS format string or human-readable fallback or null",
   "notes": "brief summary of their query or null"
 }`;
@@ -408,22 +372,26 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
       contents: [
         {
           role: 'user',
-          parts: [{ text: extractionPrompt }]
+          parts: [{ text: combinedPrompt }]
         }
       ]
     });
 
     const parsed = parseCleanJSON(response.text);
-    console.log('[CRM Parser] Structured parsing output:', parsed);
+    console.log('[AI Engine] Combined parsing output:', parsed);
 
+    // 1. Send the AI reply back on WhatsApp
+    if (parsed.reply) {
+      await sendWhatsAppMessage(customerPhone, parsed.reply);
+    }
+
+    // 2. Save CRM details to database files
     const ownerEmail = profile.email || 'default@deskflow.com';
 
-    // Save Lead if they express interest or book
     if (parsed.isLead || parsed.isBooking) {
       const leadsData = await fs.readFile(LEADS_FILE, 'utf8');
       const leads = JSON.parse(leadsData);
       
-      // Prevent duplicate leads for the same phone number under the same owner
       const exists = leads.find(l => l.phone === customerPhone && l.ownerEmail === ownerEmail);
       if (!exists) {
         const newLead = {
@@ -444,7 +412,6 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
       }
     }
 
-    // Save Appointment if isBooking is true
     if (parsed.isBooking && parsed.dateTime) {
       const apptsData = await fs.readFile(APPOINTMENTS_FILE, 'utf8');
       const appts = JSON.parse(apptsData);
@@ -452,10 +419,10 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
       const newAppt = {
         id: 'wa-appt-' + Date.now(),
         ownerEmail: ownerEmail,
-        name: parsed.customerName || customerName, // Uses matching key "name"
+        name: parsed.customerName || customerName,
         phone: customerPhone,
         service: parsed.service || 'Appointment',
-        dateTime: parsed.dateTime, // standard ISO string or text
+        dateTime: parsed.dateTime,
         status: 'confirmed',
         reminderSent: false
       };
@@ -465,7 +432,9 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     }
 
   } catch (err) {
-    console.error('[CRM Parser] Extraction sync error:', err.message);
+    console.error('[AI Engine] Error processing incoming message:', err.message);
+    // Fallback reply if everything fails
+    await sendWhatsAppMessage(customerPhone, `Hi ${customerName}, thank you for contacting us. We received your request and will get back to you shortly!`);
   }
 }
 
