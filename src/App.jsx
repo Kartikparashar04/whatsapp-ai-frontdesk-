@@ -694,6 +694,17 @@ export default function App() {
   useEffect(() => {
     if (user && user.email) {
       localStorage.setItem(`deskflow_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
+      
+      // Auto-sync WhatsApp config and phone ID to backend profiles mapping
+      fetch(`${BACKEND_URL}/v1/business-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...user,
+          phoneNumberId: whatsappConfig?.phoneNumberId || '',
+          whatsappConfig: whatsappConfig
+        })
+      }).catch(err => console.error("Error auto-syncing WhatsApp config to backend:", err));
     }
   }, [whatsappConfig, user]);
 
@@ -1732,7 +1743,7 @@ export default function App() {
                         // Complete simulation
                         setWhatsappConfig({
                           accessToken: 'EAAd1a73e8EAAd1a73e8EAAd1a73e8_secure_bearer',
-                          phoneNumberId: '109841285123901',
+                          phoneNumberId: '1168815362979106',
                           accountId: '238128912389104',
                           phoneNumber: metaPhoneInput,
                           isConnected: true
@@ -2465,7 +2476,7 @@ export default function App() {
                       
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)', borderTop: '1px solid #dadce0', paddingTop: '10px', marginTop: '4px' }}>
                         <div><strong>Connected Number:</strong> {whatsappConfig.phoneNumber || '+91 99000 88000'}</div>
-                        <div><strong>Phone ID:</strong> {whatsappConfig.phoneNumberId || '109841285123901'}</div>
+                        <div><strong>Phone ID:</strong> {whatsappConfig.phoneNumberId || '1168815362979106'}</div>
                       </div>
 
                       <button 
