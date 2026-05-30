@@ -627,30 +627,75 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeNiche]);
 
-  // LocalStorage Synchronizers
+  // Reset/Load user-specific data when user changes (login/logout/switch)
   useEffect(() => {
-    localStorage.setItem('deskflow_leads', JSON.stringify(leads));
-  }, [leads]);
+    if (user && user.email) {
+      const emailKey = user.email.toLowerCase();
+      
+      const localLeads = localStorage.getItem(`deskflow_leads_${emailKey}`);
+      setLeads(localLeads ? JSON.parse(localLeads) : INITIAL_LEADS);
+
+      const localAppts = localStorage.getItem(`deskflow_appts_${emailKey}`);
+      setAppointments(localAppts ? JSON.parse(localAppts) : INITIAL_APPOINTMENTS);
+
+      const localReferrals = localStorage.getItem(`deskflow_referrals_${emailKey}`);
+      setReferrals(localReferrals ? JSON.parse(localReferrals) : INITIAL_REFERRALS);
+
+      const localReviews = localStorage.getItem(`deskflow_reviews_${emailKey}`);
+      setReviews(localReviews ? JSON.parse(localReviews) : INITIAL_REVIEWS);
+
+      const localConfigs = localStorage.getItem(`deskflow_configs_${emailKey}`);
+      setNicheConfigs(localConfigs ? JSON.parse(localConfigs) : NICHE_CONFIGS);
+
+      const localWaConfig = localStorage.getItem(`deskflow_wa_config_${emailKey}`);
+      setWhatsappConfig(localWaConfig ? JSON.parse(localWaConfig) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+    } else {
+      // Clear/Reset to default states when logged out
+      setLeads(INITIAL_LEADS);
+      setAppointments(INITIAL_APPOINTMENTS);
+      setReferrals(INITIAL_REFERRALS);
+      setReviews(INITIAL_REVIEWS);
+      setNicheConfigs(NICHE_CONFIGS);
+      setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+    }
+  }, [user]);
+
+  // LocalStorage Synchronizers (scoped by user email)
+  useEffect(() => {
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_leads_${user.email.toLowerCase()}`, JSON.stringify(leads));
+    }
+  }, [leads, user]);
 
   useEffect(() => {
-    localStorage.setItem('deskflow_appts', JSON.stringify(appointments));
-  }, [appointments]);
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_appts_${user.email.toLowerCase()}`, JSON.stringify(appointments));
+    }
+  }, [appointments, user]);
 
   useEffect(() => {
-    localStorage.setItem('deskflow_referrals', JSON.stringify(referrals));
-  }, [referrals]);
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_referrals_${user.email.toLowerCase()}`, JSON.stringify(referrals));
+    }
+  }, [referrals, user]);
 
   useEffect(() => {
-    localStorage.setItem('deskflow_reviews', JSON.stringify(reviews));
-  }, [reviews]);
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_reviews_${user.email.toLowerCase()}`, JSON.stringify(reviews));
+    }
+  }, [reviews, user]);
 
   useEffect(() => {
-    localStorage.setItem('deskflow_configs', JSON.stringify(nicheConfigs));
-  }, [nicheConfigs]);
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_configs_${user.email.toLowerCase()}`, JSON.stringify(nicheConfigs));
+    }
+  }, [nicheConfigs, user]);
 
   useEffect(() => {
-    localStorage.setItem('deskflow_wa_config', JSON.stringify(whatsappConfig));
-  }, [whatsappConfig]);
+    if (user && user.email) {
+      localStorage.setItem(`deskflow_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
+    }
+  }, [whatsappConfig, user]);
 
   // Save/Remove session key
   useEffect(() => {
