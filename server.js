@@ -156,7 +156,7 @@ app.post('/v1/webhooks', async (req, res) => {
           });
         } else {
           console.warn('Gemini client not initialized, sending fallback placeholder reply.');
-          await sendWhatsAppMessage(customerPhone, "Thank you for your message! Our AI assistant is configuring. How can we help you?");
+          await sendWhatsAppMessage(customerPhone, "Thank you for your message! Our AI assistant is configuring. How can we help you?", activeProfile);
         }
       }
       return res.status(200).send('EVENT_RECEIVED');
@@ -302,8 +302,13 @@ app.post('/v1/clear-crm', async (req, res) => {
 /**
  * Helper: Call Meta Graph API to send WhatsApp message
  */
-async function sendWhatsAppMessage(toPhone, textBody) {
-  const url = `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`;
+async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
+  const token = (profile?.whatsappConfig?.accessToken && !profile.whatsappConfig.accessToken.includes('secure_bearer'))
+    ? profile.whatsappConfig.accessToken
+    : META_ACCESS_TOKEN;
+  const phoneId = profile?.phoneNumberId || profile?.whatsappConfig?.phoneNumberId || PHONE_NUMBER_ID;
+
+  const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
   
   const payload = {
     messaging_product: "whatsapp",
@@ -317,10 +322,10 @@ async function sendWhatsAppMessage(toPhone, textBody) {
   };
 
   try {
-    console.log(`Sending message to ${toPhone}...`);
+    console.log(`Sending message to ${toPhone} using Phone ID ${phoneId}...`);
     const response = await axios.post(url, payload, {
       headers: {
-        'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -382,7 +387,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
 
     // 1. Send the AI reply back on WhatsApp
     if (parsed.reply) {
-      await sendWhatsAppMessage(customerPhone, parsed.reply);
+      await sendWhatsAppMessage(customerPhone, parsed.reply, profile);
     }
 
     // 2. Save CRM details to database files
@@ -434,7 +439,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
   } catch (err) {
     console.error('[AI Engine] Error processing incoming message:', err.message);
     // Fallback reply if everything fails
-    await sendWhatsAppMessage(customerPhone, `Hi ${customerName}, thank you for contacting us. We received your request and will get back to you shortly!`);
+    await sendWhatsAppMessage(customerPhone, `Hi ${customerName}, thank you for contacting us. We received your request and will get back to you shortly!`, profile);
   }
 }
 

@@ -41,7 +41,10 @@ import {
 } from './mockData';
 
 // Backend URL configuration (Vite environment variables)
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? 'https://deskflow-backend-vlc0.onrender.com'
+    : 'http://localhost:3000');
 
 
 // Web Audio API Helper
