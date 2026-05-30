@@ -22,7 +22,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // JSON DB Paths
 const LEADS_FILE = path.join(process.cwd(), 'leads.json');
 const APPOINTMENTS_FILE = path.join(process.cwd(), 'appointments.json');
-const PROFILE_FILE = path.join(process.cwd(), 'business_profile.json');
+const PROFILES_FILE = path.join(process.cwd(), 'business_profiles.json');
 
 // Initialize JSON Database files if they don't exist
 async function initDatabases() {
@@ -36,6 +36,12 @@ async function initDatabases() {
     await fs.access(APPOINTMENTS_FILE);
   } catch {
     await fs.writeFile(APPOINTMENTS_FILE, JSON.stringify([], null, 2), 'utf8');
+  }
+
+  try {
+    await fs.access(PROFILES_FILE);
+  } catch {
+    await fs.writeFile(PROFILES_FILE, JSON.stringify({}, null, 2), 'utf8');
   }
 }
 initDatabases();
@@ -52,21 +58,30 @@ if (GEMINI_API_KEY) {
 }
 
 /**
- * Helper: Load Business Profile coordinates dynamically
+ * Helper: Load a specific Business Profile by email
  */
-async function loadBusinessProfile() {
+async function getProfileByEmail(email) {
   try {
-    const data = await fs.readFile(PROFILE_FILE, 'utf8');
-    return JSON.parse(data);
+    const data = await fs.readFile(PROFILES_FILE, 'utf8');
+    const profiles = JSON.parse(data);
+    return profiles[email.toLowerCase()] || null;
   } catch (error) {
-    return {
-      businessName: 'DeskFlow Client',
-      niche: 'dental',
-      businessAddress: '100 Feet Road, Indiranagar, Bangalore',
-      businessPhone: '+91 99000 88000',
-      businessWebsite: 'https://www.deskflowai.com',
-      aiPersona: 'Friendly'
-    };
+    return null;
+  }
+}
+
+/**
+ * Helper: Load Business Profile by phone number ID (for incoming webhooks)
+ */
+async function getProfileByPhoneId(phoneId) {
+  try {
+    const data = await fs.readFile(PROFILES_FILE, 'utf8');
+    const profiles = JSON.parse(data);
+    // Find the first profile that matches this phoneId
+    const profile = Object.values(profiles).find(p => p.phoneNumberId === phoneId || p.businessPhoneId === phoneId);
+    return profile || null;
+  } catch (error) {
+    return null;
   }
 }
 
@@ -118,13 +133,26 @@ app.post('/v1/webhooks', async (req, res) => {
         const customerPhone = message.from; // Customer's phone number
         const customerName = value.contacts?.[0]?.profile?.name || 'Customer';
         const userText = message.text.body;
+        const phoneId = value.metadata?.phone_number_id;
 
-        console.log(`Received message from ${customerName} (${customerPhone}): ${userText}`);
+        console.log(`Received message from ${customerName} (${customerPhone}) on Phone ID ${phoneId}: ${userText}`);
+
+        // Route webhook to the corresponding user profile by matching phone ID
+        const profile = await getProfileByPhoneId(phoneId);
+        const activeProfile = profile || {
+          businessName: 'DeskFlow Client',
+          niche: 'dental',
+          businessAddress: '100 Feet Road, Indiranagar, Bangalore',
+          businessPhone: '+91 99000 88000',
+          businessWebsite: 'https://www.deskflowai.com',
+          aiPersona: 'Friendly',
+          email: 'default@deskflow.com'
+        };
 
         // A. Generate reply using Gemini AI
         let aiResponse = "Thank you for your message! Our AI assistant is configuring. How can we help you?";
         if (aiClient) {
-          aiResponse = await generateAIResponse(userText, customerName);
+          aiResponse = await generateAIResponse(userText, customerName, activeProfile);
         } else {
           console.warn('Gemini client not initialized, using placeholder reply.');
         }
@@ -134,7 +162,7 @@ app.post('/v1/webhooks', async (req, res) => {
 
         // C. Parse the message for CRM leads/appointments in the background
         if (aiClient) {
-          parseAndSaveCRM(userText, customerPhone, customerName).catch(err => {
+          parseAndSaveCRM(userText, customerPhone, customerName, activeProfile).catch(err => {
             console.error('Error running CRM background sync parser:', err.message);
           });
         }
@@ -156,8 +184,28 @@ app.post('/v1/business-profile', async (req, res) => {
   try {
     const profileData = req.body;
     console.log('Received business profile update request:', profileData);
-    await fs.writeFile(PROFILE_FILE, JSON.stringify(profileData, null, 2), 'utf8');
-    console.log(`Successfully synced business profile for: ${profileData.businessName}`);
+    
+    if (!profileData.email) {
+      return res.status(400).json({ success: false, error: 'Email parameter is required to save profile.' });
+    }
+
+    const emailKey = profileData.email.toLowerCase();
+    
+    // Load profiles mapping
+    let profiles = {};
+    try {
+      const data = await fs.readFile(PROFILES_FILE, 'utf8');
+      profiles = JSON.parse(data);
+    } catch (err) {}
+
+    profiles[emailKey] = {
+      ...profileData,
+      email: emailKey,
+      phoneNumberId: profileData.phoneNumberId || profileData.businessPhoneId || ''
+    };
+
+    await fs.writeFile(PROFILES_FILE, JSON.stringify(profiles, null, 2), 'utf8');
+    console.log(`Successfully synced business profile for: ${profileData.businessName} under email ${emailKey}`);
     return res.status(200).json({ success: true, message: 'Business profile synced successfully!' });
   } catch (error) {
     console.error('Error saving business profile:', error.message);
@@ -170,8 +218,14 @@ app.post('/v1/business-profile', async (req, res) => {
  */
 app.get('/v1/leads', async (req, res) => {
   try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(200).json([]);
+    }
     const data = await fs.readFile(LEADS_FILE, 'utf8');
-    return res.status(200).json(JSON.parse(data));
+    const leads = JSON.parse(data);
+    const filtered = leads.filter(l => l.ownerEmail && l.ownerEmail.toLowerCase() === email.toLowerCase());
+    return res.status(200).json(filtered);
   } catch (error) {
     return res.status(200).json([]);
   }
@@ -182,8 +236,14 @@ app.get('/v1/leads', async (req, res) => {
  */
 app.get('/v1/appointments', async (req, res) => {
   try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(200).json([]);
+    }
     const data = await fs.readFile(APPOINTMENTS_FILE, 'utf8');
-    return res.status(200).json(JSON.parse(data));
+    const appts = JSON.parse(data);
+    const filtered = appts.filter(a => a.ownerEmail && a.ownerEmail.toLowerCase() === email.toLowerCase());
+    return res.status(200).json(filtered);
   } catch (error) {
     return res.status(200).json([]);
   }
@@ -281,9 +341,8 @@ async function sendWhatsAppMessage(toPhone, textBody) {
 /**
  * Helper: Generate response using Gemini AI SDK with dynamic profile parameters
  */
-async function generateAIResponse(userMessage, customerName) {
+async function generateAIResponse(userMessage, customerName, profile) {
   try {
-    const profile = await loadBusinessProfile();
     const categoryLabel = profile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
     
     console.log(`Generating dynamic AI response for ${profile.businessName} (Niche: ${profile.niche})...`);
@@ -319,7 +378,7 @@ Customer's message: "${userMessage}"`;
 /**
  * Helper: Background parsing of incoming messages to extract structured leads/appointments
  */
-async function parseAndSaveCRM(userMessage, customerPhone, customerName) {
+async function parseAndSaveCRM(userMessage, customerPhone, customerName, profile) {
   try {
     console.log(`[CRM Parser] Scanning message from ${customerPhone} for structured data...`);
     const today = new Date();
@@ -357,16 +416,19 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     const parsed = parseCleanJSON(response.text);
     console.log('[CRM Parser] Structured parsing output:', parsed);
 
+    const ownerEmail = profile.email || 'default@deskflow.com';
+
     // Save Lead if they express interest or book
     if (parsed.isLead || parsed.isBooking) {
       const leadsData = await fs.readFile(LEADS_FILE, 'utf8');
       const leads = JSON.parse(leadsData);
       
-      // Prevent duplicate leads for the same phone number
-      const exists = leads.find(l => l.phone === customerPhone);
+      // Prevent duplicate leads for the same phone number under the same owner
+      const exists = leads.find(l => l.phone === customerPhone && l.ownerEmail === ownerEmail);
       if (!exists) {
         const newLead = {
           id: 'wa-lead-' + Date.now(),
+          ownerEmail: ownerEmail,
           name: parsed.customerName || customerName,
           phone: customerPhone,
           requirement: parsed.service || 'WhatsApp Inquiry',
@@ -378,7 +440,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
         };
         leads.push(newLead);
         await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), 'utf8');
-        console.log(`[CRM] Saved new Lead from WhatsApp: ${newLead.name}`);
+        console.log(`[CRM] Saved new Lead from WhatsApp: ${newLead.name} under email ${ownerEmail}`);
       }
     }
 
@@ -389,6 +451,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
       
       const newAppt = {
         id: 'wa-appt-' + Date.now(),
+        ownerEmail: ownerEmail,
         name: parsed.customerName || customerName, // Uses matching key "name"
         phone: customerPhone,
         service: parsed.service || 'Appointment',
@@ -398,7 +461,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
       };
       appts.push(newAppt);
       await fs.writeFile(APPOINTMENTS_FILE, JSON.stringify(appts, null, 2), 'utf8');
-      console.log(`[CRM] Saved new Appointment from WhatsApp: ${newAppt.name} on ${newAppt.dateTime}`);
+      console.log(`[CRM] Saved new Appointment from WhatsApp: ${newAppt.name} on ${newAppt.dateTime} under email ${ownerEmail}`);
     }
 
   } catch (err) {

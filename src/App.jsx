@@ -586,7 +586,7 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         // 1. Fetch leads from WhatsApp backend
-        const resLeads = await fetch(`${BACKEND_URL}/v1/leads`);
+        const resLeads = await fetch(`${BACKEND_URL}/v1/leads?email=${user.email}`);
         if (!resLeads.ok) return;
         const waLeads = await resLeads.json();
         
@@ -600,7 +600,7 @@ export default function App() {
         });
 
         // 2. Fetch appointments from WhatsApp backend
-        const resAppts = await fetch(`${BACKEND_URL}/v1/appointments`);
+        const resAppts = await fetch(`${BACKEND_URL}/v1/appointments?email=${user.email}`);
         if (!resAppts.ok) return;
         const waAppts = await resAppts.json();
         
@@ -813,23 +813,52 @@ export default function App() {
     const phoneNumberId = form.phoneNumberId.value;
     const accountId = form.accountId.value;
 
+    let updatedConfig;
     if (accessToken.trim() && phoneNumberId.trim() && accountId.trim()) {
-      setWhatsappConfig({
+      updatedConfig = {
         accessToken,
         phoneNumberId,
         accountId,
         isConnected: true
-      });
+      };
+      setWhatsappConfig(updatedConfig);
       triggerToast("WhatsApp Business API Connected!", "green");
       addActivity("Connected Meta WhatsApp Business API endpoint", "success");
+
+      // Sync credentials & phone ID with backend profile mapping
+      if (user) {
+        fetch(`${BACKEND_URL}/v1/business-profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...user,
+            phoneNumberId: phoneNumberId,
+            whatsappConfig: updatedConfig
+          })
+        }).catch(err => console.error("Error syncing profile with backend:", err));
+      }
     } else {
-      setWhatsappConfig({
+      updatedConfig = {
         accessToken: '',
         phoneNumberId: '',
         accountId: '',
         isConnected: false
-      });
+      };
+      setWhatsappConfig(updatedConfig);
       triggerToast("WhatsApp API Configuration Disconnected.");
+
+      // Sync disconnect status with backend
+      if (user) {
+        fetch(`${BACKEND_URL}/v1/business-profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...user,
+            phoneNumberId: '',
+            whatsappConfig: updatedConfig
+          })
+        }).catch(err => console.error("Error syncing profile with backend:", err));
+      }
     }
   };
 
@@ -2737,11 +2766,14 @@ Your main tasks are:
                   triggerToast("Profile and business details updated!", "green");
                   addActivity(`Updated business coordinates for ${updatedBusinessName}`, "success");
 
-                  // Sync updated profile details to backend Express server
+                   // Sync updated profile details to backend Express server
                   fetch(`${BACKEND_URL}/v1/business-profile`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatedUser)
+                    body: JSON.stringify({
+                      ...updatedUser,
+                      phoneNumberId: whatsappConfig?.phoneNumberId || ''
+                    })
                   }).catch(err => console.error("Error syncing profile with backend:", err));
                 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
