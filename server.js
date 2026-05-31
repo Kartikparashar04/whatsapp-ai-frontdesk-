@@ -88,8 +88,28 @@ async function initSQLite() {
         phone_number_id TEXT,
         whatsapp_config TEXT
       );
+      
+      CREATE TABLE IF NOT EXISTS referrals (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        referrer_name TEXT,
+        referrer_phone TEXT,
+        code TEXT,
+        discount_value TEXT,
+        status TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS reviews (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        customer_name TEXT,
+        rating INTEGER,
+        comment TEXT,
+        status TEXT,
+        niche TEXT
+      );
     `);
-    console.log('SQLite Database and all tables (users, leads, appointments, business_profiles) initialized successfully!');
+    console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews) initialized successfully!');
   } catch (error) {
     console.error('Failed to initialize SQLite Database:', error.message);
   }
@@ -490,6 +510,283 @@ app.post('/v1/clear-crm', checkAuth, async (req, res) => {
     return res.status(200).json({ success: true, message: 'Your CRM data cleared successfully!' });
   } catch (error) {
     console.error('Error clearing CRM data in SQL:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 7. POST Create Manual/Simulator CRM Lead
+ */
+app.post('/v1/leads', checkAuth, async (req, res) => {
+  try {
+    const { id, name, phone, requirement, budget, location, status, source, date } = req.body;
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+
+    await db.run(`
+      INSERT INTO leads (id, owner_email, name, phone, requirement, budget, location, status, source, date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        requirement = excluded.requirement,
+        budget = excluded.budget,
+        location = excluded.location,
+        status = excluded.status,
+        source = excluded.source,
+        date = excluded.date
+    `, id, ownerEmail, name, phone, requirement, budget, location, status, source, date);
+
+    return res.status(200).json({ success: true, message: 'Lead saved in SQL successfully!' });
+  } catch (error) {
+    console.error('Error saving lead to SQL:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 8. POST Create Manual/Simulator CRM Appointment
+ */
+app.post('/v1/appointments', checkAuth, async (req, res) => {
+  try {
+    const { id, name, phone, service, dateTime, status, reminderSent } = req.body;
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+
+    await db.run(`
+      INSERT INTO appointments (id, owner_email, name, phone, service, date_time, status, reminder_sent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        service = excluded.service,
+        date_time = excluded.date_time,
+        status = excluded.status,
+        reminder_sent = excluded.reminder_sent
+    `, id, ownerEmail, name, phone, service, dateTime, status, reminderSent ? 1 : 0);
+
+    return res.status(200).json({ success: true, message: 'Appointment saved in SQL successfully!' });
+  } catch (error) {
+    console.error('Error saving appointment to SQL:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 9. GET CRM Referrals
+ */
+app.get('/v1/referrals', checkAuth, async (req, res) => {
+  try {
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    const rows = await db.all('SELECT * FROM referrals WHERE owner_email = ?', ownerEmail);
+    const mapped = rows.map(r => ({
+      id: r.id,
+      referrerName: r.referrer_name,
+      referrerPhone: r.referrer_phone,
+      code: r.code,
+      discountValue: r.discount_value,
+      status: r.status
+    }));
+    return res.status(200).json(mapped);
+  } catch (error) {
+    console.error('Error fetching referrals:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 10. POST Create/Update CRM Referral
+ */
+app.post('/v1/referrals', checkAuth, async (req, res) => {
+  try {
+    const { id, referrerName, referrerPhone, code, discountValue, status } = req.body;
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+
+    await db.run(`
+      INSERT INTO referrals (id, owner_email, referrer_name, referrer_phone, code, discount_value, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        referrer_name = excluded.referrer_name,
+        referrer_phone = excluded.referrer_phone,
+        code = excluded.code,
+        discount_value = excluded.discount_value,
+        status = excluded.status
+    `, id, ownerEmail, referrerName, referrerPhone, code, discountValue, status);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error saving referral:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 11. GET CRM Reviews
+ */
+app.get('/v1/reviews', checkAuth, async (req, res) => {
+  try {
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    const rows = await db.all('SELECT * FROM reviews WHERE owner_email = ?', ownerEmail);
+    const mapped = rows.map(r => ({
+      id: r.id,
+      customerName: r.customer_name,
+      rating: r.rating,
+      comment: r.comment,
+      status: r.status,
+      niche: r.niche
+    }));
+    return res.status(200).json(mapped);
+  } catch (error) {
+    console.error('Error fetching reviews:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 12. POST Create/Update CRM Review
+ */
+app.post('/v1/reviews', checkAuth, async (req, res) => {
+  try {
+    const { id, customerName, rating, comment, status, niche } = req.body;
+    const ownerEmail = req.user.email.toLowerCase();
+    if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+
+    await db.run(`
+      INSERT INTO reviews (id, owner_email, customer_name, rating, comment, status, niche)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        customer_name = excluded.customer_name,
+        rating = excluded.rating,
+        comment = excluded.comment,
+        status = excluded.status,
+        niche = excluded.niche
+    `, id, ownerEmail, customerName, rating, comment, status, niche);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error saving review:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 13. POST Live AI Simulator Endpoint
+ */
+app.post('/v1/test-agent-reply', checkAuth, async (req, res) => {
+  try {
+    const { message, customerPhone, customerName } = req.body;
+    const emailKey = req.user.email.toLowerCase();
+
+    // Fetch profile
+    const profile = await getProfileByEmail(emailKey);
+    const activeProfile = profile || {
+      businessName: 'DeskFlow Client',
+      niche: 'dental',
+      businessAddress: '100 Feet Road, Indiranagar, Bangalore',
+      businessPhone: '+91 99000 88000',
+      businessWebsite: 'https://www.deskflowai.com',
+      aiPersona: 'Friendly',
+      email: emailKey
+    };
+
+    if (!aiClient) {
+      return res.status(200).json({
+        reply: "Gemini AI is not configured. Please set your GEMINI_API_KEY in the environment.",
+        isBooking: false,
+        isLead: false
+      });
+    }
+
+    const today = new Date();
+    const categoryLabel = activeProfile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
+
+    const combinedPrompt = `You are a front desk database parser and conversational agent.
+Analyze this WhatsApp client query: "${message}"
+From sender: Name: "${customerName || 'Test Customer'}", Phone: "${customerPhone || '9999999999'}".
+Current date is: ${today.toDateString()} (Day: ${today.toLocaleDateString('en-US', { weekday: 'long' })}).
+
+You are the AI Front Desk for "${activeProfile.businessName}", a premium ${categoryLabel} located at "${activeProfile.businessAddress}".
+Business contact: Phone: ${activeProfile.businessPhone}, Website: ${activeProfile.businessWebsite}.
+Your personality: ${activeProfile.aiPersona} (always polite, helpful, and concise).
+
+Tasks:
+1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
+2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
+
+You MUST reply ONLY with a valid JSON block matching this exact structure, do not wrap it in anything else, do not include markdown blocks:
+{
+  "reply": "conversational reply under 3 sentences to send to WhatsApp",
+  "isBooking": true/false,
+  "isLead": true/false,
+  "customerName": "extracted customer name or fallback",
+  "service": "extracted service name (e.g. Teeth Cleaning, Haircut) or null",
+  "dateTime": "computed YYYY-MM-DDTHH:MM:SS format string or human-readable fallback or null",
+  "notes": "brief summary of their query or null"
+}`;
+
+    const response = await aiClient.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: combinedPrompt }]
+        }
+      ]
+    });
+
+    const parsed = parseCleanJSON(response.text);
+    console.log('[AI Simulator Engine] Combined parsing output:', parsed);
+
+    const targetPhone = customerPhone || '9999999999';
+    const targetName = parsed.customerName || customerName || 'Test Customer';
+
+    // Save CRM details to SQLite database
+    if (db) {
+      if (parsed.isLead || parsed.isBooking) {
+        const exists = await db.get('SELECT id FROM leads WHERE phone = ? AND owner_email = ?', targetPhone, emailKey);
+        if (!exists) {
+          const leadId = 'wa-lead-' + Date.now();
+          await db.run(`
+            INSERT INTO leads (id, owner_email, name, phone, requirement, budget, location, status, source, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+            leadId,
+            emailKey,
+            targetName,
+            targetPhone,
+            parsed.service || 'Simulator Inquiry',
+            'N/A',
+            'Simulator Panel',
+            'new',
+            'Simulator AI',
+            new Date().toISOString()
+          );
+        }
+      }
+
+      if (parsed.isBooking && parsed.dateTime) {
+        const apptId = 'wa-appt-' + Date.now();
+        await db.run(`
+          INSERT INTO appointments (id, owner_email, name, phone, service, date_time, status, reminder_sent)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+        `,
+          apptId,
+          emailKey,
+          targetName,
+          targetPhone,
+          parsed.service || 'Appointment',
+          parsed.dateTime,
+          'confirmed'
+        );
+      }
+    }
+
+    return res.status(200).json(parsed);
+  } catch (error) {
+    console.error('[AI Simulator Engine] Error:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

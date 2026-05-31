@@ -71,6 +71,22 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
     : 'http://localhost:3000');
 
 
+// Document Tab Title Flashing Helper
+const flashTabTitle = (alertMessage) => {
+  const originalTitle = document.title;
+  let isAlert = false;
+  let count = 0;
+  const interval = setInterval(() => {
+    document.title = isAlert ? alertMessage : originalTitle;
+    isAlert = !isAlert;
+    count++;
+    if (count > 10) {
+      clearInterval(interval);
+      document.title = originalTitle;
+    }
+  }, 1000);
+};
+
 // Web Audio API Helper
 const playAudioSfx = (type) => {
   try {
@@ -478,6 +494,9 @@ export default function App() {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
   const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
+  const [apptViewMode, setApptViewMode] = useState('cards');
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
+  const [selectedPrefilledDate, setSelectedPrefilledDate] = useState('');
   const [metaStep, setMetaStep] = useState(1);
   const [metaOtpInput, setMetaOtpInput] = useState('');
   const [metaPhoneInput, setMetaPhoneInput] = useState('');
@@ -504,6 +523,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isLiveAiMode, setIsLiveAiMode] = useState(false);
   const chatEndRef = useRef(null);
 
   // Chatbot State Machine tracking
@@ -637,6 +657,8 @@ export default function App() {
           if (updated) {
             triggerToast("New Lead captured from WhatsApp AI!", "green");
             addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
+            playAudioSfx('receive');
+            flashTabTitle("⚠️ New WhatsApp Lead!");
           }
           return merged;
         });
@@ -656,10 +678,32 @@ export default function App() {
           const { merged, updated } = mergeCRMData(prevAppts, normalizedAppts);
           if (updated) {
             triggerToast("New Appointment booked via WhatsApp AI!", "green");
-            addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].customerName}`, 'success');
+            addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].name || 'Client'}`, 'success');
+            playAudioSfx('receive');
+            flashTabTitle("📅 New Booking!");
           }
           return merged;
         });
+
+        // 3. Fetch referrals from SQLite
+        const resRefs = await authenticatedFetch(`${BACKEND_URL}/v1/referrals`);
+        if (resRefs.ok) {
+          const waRefs = await resRefs.json();
+          setReferrals(prevRefs => {
+            const { merged } = mergeCRMData(prevRefs, waRefs);
+            return merged;
+          });
+        }
+
+        // 4. Fetch reviews from SQLite
+        const resRevs = await authenticatedFetch(`${BACKEND_URL}/v1/reviews`);
+        if (resRevs.ok) {
+          const waRevs = await resRevs.json();
+          setReviews(prevRevs => {
+            const { merged } = mergeCRMData(prevRevs, waRevs);
+            return merged;
+          });
+        }
 
       } catch (err) {
         // Fail silently when server is offline or restarting
@@ -1437,6 +1481,42 @@ export default function App() {
     setUserInput('');
     setIsTyping(true);
 
+    if (isLiveAiMode) {
+      // Route to real Gemini backend simulator
+      authenticatedFetch(`${BACKEND_URL}/v1/test-agent-reply`, {
+        method: 'POST',
+        body: JSON.stringify({
+          message: userText,
+          customerName: user.name || 'Test User',
+          customerPhone: user.phone || '9999999999'
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        setIsTyping(false);
+        if (data.reply) {
+          setChatMessages(prev => [...prev, {
+            id: `msg-bot-${Date.now()}`,
+            text: data.reply,
+            sender: 'bot',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+          playAudioSfx('receive');
+        }
+      })
+      .catch(err => {
+        console.error("Live AI mode error:", err);
+        setIsTyping(false);
+        setChatMessages(prev => [...prev, {
+          id: `msg-bot-${Date.now()}`,
+          text: "Oops! I encountered an error checking in with the AI Desk. Check your server console logs.",
+          sender: 'bot',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+      });
+      return;
+    }
+
     setTimeout(() => {
       let botResponse = '';
       let nextStep = botState.step;
@@ -1661,6 +1741,12 @@ export default function App() {
     setIsLeadModalOpen(false);
     triggerToast(`Manual lead registered: ${newLead.name}`, 'green');
     addActivity(`CRM manual lead registered: ${newLead.name}`, 'success');
+
+    // Sync manual lead to SQLite backend
+    authenticatedFetch(`${BACKEND_URL}/v1/leads`, {
+      method: 'POST',
+      body: JSON.stringify(newLead)
+    }).catch(err => console.error("Error syncing manual lead:", err));
   };
 
   // Action: Add Manual Appointment Form
@@ -1684,6 +1770,12 @@ export default function App() {
     setSelectedBookingTime('');
     triggerToast(`Booking scheduled for ${newAppt.name}`, 'purple');
     addActivity(`Manual appointment created: ${newAppt.name}`, 'info');
+
+    // Sync manual appointment to SQLite backend
+    authenticatedFetch(`${BACKEND_URL}/v1/appointments`, {
+      method: 'POST',
+      body: JSON.stringify(newAppt)
+    }).catch(err => console.error("Error syncing manual appointment:", err));
   };
 
   // Action: Export Leads as CSV
@@ -2243,6 +2335,153 @@ export default function App() {
     );
   }
 
+  // Helper: Render appointments as a monthly calendar grid
+  const renderAppointmentsCalendar = () => {
+    const year = currentCalendarMonth.getFullYear();
+    const month = currentCalendarMonth.getMonth();
+    
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    
+    const prevTotalDays = new Date(year, month, 0).getDate();
+    const daysArray = [];
+    
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      daysArray.push({ day: prevTotalDays - i, currentMonth: false });
+    }
+    for (let i = 1; i <= totalDays; i++) {
+      daysArray.push({ day: i, currentMonth: true });
+    }
+    const remaining = 42 - daysArray.length;
+    for (let i = 1; i <= remaining; i++) {
+      daysArray.push({ day: i, currentMonth: false });
+    }
+    
+    return (
+      <div className="glass-panel" style={{ padding: '20px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h4 style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>
+            {monthNames[month]} {year}
+          </h4>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => setCurrentCalendarMonth(new Date(year, month - 1, 1))}
+              className="action-btn"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}
+            >
+              Prev
+            </button>
+            <button 
+              onClick={() => setCurrentCalendarMonth(new Date())}
+              className="action-btn"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}
+            >
+              Today
+            </button>
+            <button 
+              onClick={() => setCurrentCalendarMonth(new Date(year, month + 1, 1))}
+              className="action-btn"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)' }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', marginBottom: '8px' }}>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+            <div key={d} style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', minHeight: '350px' }}>
+          {daysArray.map((cell, idx) => {
+            const dateStr = cell.currentMonth 
+              ? `${year}-${String(month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`
+              : '';
+            
+            const cellAppts = filteredAppointments.filter(appt => {
+              if (!cell.currentMonth) return false;
+              const apptDate = new Date(appt.dateTime);
+              return apptDate.getFullYear() === year && apptDate.getMonth() === month && apptDate.getDate() === cell.day;
+            });
+            
+            return (
+              <div 
+                key={idx} 
+                onClick={() => {
+                  if (cell.currentMonth) {
+                    setSelectedPrefilledDate(dateStr);
+                    setIsApptModalOpen(true);
+                  }
+                }}
+                style={{
+                  background: cell.currentMonth ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.002)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '6px',
+                  padding: '6px',
+                  minHeight: '80px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  cursor: cell.currentMonth ? 'pointer' : 'default',
+                  opacity: cell.currentMonth ? 1 : 0.3,
+                  transition: 'background 0.2s',
+                  position: 'relative'
+                }}
+                className={cell.currentMonth ? 'calendar-day-cell' : ''}
+              >
+                <span style={{ 
+                  fontSize: '0.75rem', 
+                  fontWeight: '600', 
+                  alignSelf: 'flex-start',
+                  color: cell.currentMonth ? 'var(--text-secondary)' : 'var(--text-muted)'
+                }}>
+                  {cell.day}
+                </span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', overflowY: 'auto', maxHeight: '60px' }}>
+                  {cellAppts.map(appt => {
+                    const time = new Date(appt.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <div 
+                        key={appt.id} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        style={{
+                          fontSize: '0.65rem',
+                          background: appt.status === 'confirmed' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          borderLeft: appt.status === 'confirmed' ? '2px solid var(--accent-green)' : '2px solid var(--accent-yellow)',
+                          color: appt.status === 'confirmed' ? 'var(--accent-green)' : 'var(--accent-yellow)',
+                          padding: '2px 4px',
+                          borderRadius: '2px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: 'flex',
+                          justify: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        title={`${appt.name} - ${appt.service} at ${time}`}
+                      >
+                        <span style={{ fontWeight: '600' }}>{appt.name}</span>
+                        <span style={{ opacity: 0.8, fontSize: '0.6rem' }}>{time}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // SCREEN RENDER 1.5: ONBOARDING WIZARD
   if (user && !user.isOnboarded && user.role === 'owner') {
     return (
@@ -2356,6 +2595,8 @@ export default function App() {
                   type="datetime-local" 
                   name="dateTime" 
                   required 
+                  defaultValue={selectedPrefilledDate ? `${selectedPrefilledDate}T11:00` : ""}
+                  key={selectedPrefilledDate}
                   onChange={(e) => setSelectedBookingTime(e.target.value)}
                 />
                 
@@ -2696,6 +2937,16 @@ export default function App() {
               >
                 <Share2 size={18} />
                 <span>Reviews & Referrals</span>
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('campaigns')}
+                className={`menu-item ${activeTab === 'campaigns' ? 'active' : ''}`}
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+              >
+                <Sparkles size={18} style={{ color: 'var(--accent-purple)' }} />
+                <span>Marketing Broadcast</span>
               </button>
             </li>
             <li>
@@ -3119,9 +3370,45 @@ export default function App() {
             <div className="calendar-header">
               <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Active Booking Calendar</h3>
               
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '2px', border: '1px solid var(--border-light)' }}>
+                  <button 
+                    onClick={() => setApptViewMode('cards')}
+                    style={{ 
+                      padding: '6px 12px', 
+                      fontSize: '0.8rem', 
+                      borderRadius: '6px', 
+                      border: 'none',
+                      background: apptViewMode === 'cards' ? 'var(--accent-purple)' : 'transparent',
+                      color: apptViewMode === 'cards' ? 'white' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Feed List
+                  </button>
+                  <button 
+                    onClick={() => setApptViewMode('calendar')}
+                    style={{ 
+                      padding: '6px 12px', 
+                      fontSize: '0.8rem', 
+                      borderRadius: '6px', 
+                      border: 'none',
+                      background: apptViewMode === 'calendar' ? 'var(--accent-purple)' : 'transparent',
+                      color: apptViewMode === 'calendar' ? 'white' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Month View
+                  </button>
+                </div>
+
                 <button 
-                  onClick={() => setIsApptModalOpen(true)}
+                  onClick={() => {
+                    setSelectedPrefilledDate('');
+                    setIsApptModalOpen(true);
+                  }}
                   className="btn-primary" 
                   style={{ padding: '8px 16px', fontSize: '0.85rem' }}
                 >
@@ -3131,7 +3418,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="booking-cards-grid">
+            {apptViewMode === 'calendar' ? renderAppointmentsCalendar() : (
+              <div className="booking-cards-grid">
               {filteredAppointments.length > 0 ? (
                 filteredAppointments.map(appt => {
                   const conflict = appointments.filter(a => 
@@ -3221,6 +3509,7 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
 
             <div className="glass-panel" style={{ padding: '20px', marginTop: '12px' }}>
               <h4 style={{ fontWeight: 'bold', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -3232,6 +3521,142 @@ export default function App() {
               </p>
             </div>
 
+          </div>
+        )}
+
+        {/* Tab 3.5: Broadcast Campaigns */}
+        {activeTab === 'campaigns' && (
+          <div className="tab-content">
+            <div className="calendar-header">
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Outbound Broadcast Campaigns</h3>
+              <span className="badge badge-converted">Marketing Engine Active</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', marginTop: '16px' }}>
+              
+              {/* Campaign Editor */}
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <h4 style={{ fontWeight: 'bold', fontSize: '1rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MessageSquare size={16} style={{ color: 'var(--accent-purple)' }} />
+                  Configure Broadcast Campaign
+                </h4>
+                
+                <div className="form-group">
+                  <label>Select Target Audience</label>
+                  <select id="campaign-audience" style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)' }}>
+                    <option value="all-leads">All Registered Leads ({leads.filter(l => l.niche === activeNiche).length} contacts)</option>
+                    <option value="new-leads">Only New Leads ({leads.filter(l => l.niche === activeNiche && l.status === 'new').length} contacts)</option>
+                    <option value="all-appts">Appointment Clients ({appointments.filter(a => a.niche === activeNiche).length} contacts)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Campaign Template</label>
+                  <select 
+                    id="campaign-template" 
+                    onChange={(e) => {
+                      const t = e.target.value;
+                      const box = document.getElementById("campaign-text-preview");
+                      if (t === 'promo') {
+                        box.value = `Hi {{name}}, this is ${currentConfig.businessName}! 🦷 We are offering an exclusive 15% discount for our loyalty club members. Book your slot today and show coupon code: LOYALTY15 at check-out!`;
+                      } else if (t === 'review') {
+                        box.value = `Hello {{name}}! Thank you for visiting us recently. We hope you loved our service. Could you please take 30 seconds to rate us on Google Reviews: ${currentConfig.reviewUrl}? It helps our clinic grow!`;
+                      } else {
+                        box.value = `Hi {{name}}, we have a few slots open this week for ${activeNiche === 'dental' ? 'teeth cleanings' : 'hair stylings'}. Reply to this message if you would like to book an appointment!`;
+                      }
+                    }}
+                    style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                  >
+                    <option value="promo">Exclusive Niche Promotion (15% Coupon)</option>
+                    <option value="review">Google Review Request Loop</option>
+                    <option value="slot">Schedule Slot Inquiry Reminder</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Message Content Preview</label>
+                  <textarea 
+                    id="campaign-text-preview"
+                    rows={4}
+                    defaultValue={`Hi {{name}}, this is ${currentConfig.businessName}! 🦷 We are offering an exclusive 15% discount for our loyalty club members. Book your slot today and show coupon code: LOYALTY15 at check-out!`}
+                    style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontFamily: 'inherit', resize: 'none' }}
+                  />
+                </div>
+
+                <button 
+                  onClick={() => {
+                    const aud = document.getElementById("campaign-audience").value;
+                    const msg = document.getElementById("campaign-text-preview").value;
+                    
+                    let targets = [];
+                    if (aud === 'all-leads') {
+                      targets = leads.filter(l => l.niche === activeNiche);
+                    } else if (aud === 'new-leads') {
+                      targets = leads.filter(l => l.niche === activeNiche && l.status === 'new');
+                    } else {
+                      targets = appointments.filter(a => a.niche === activeNiche);
+                    }
+
+                    if (targets.length === 0) {
+                      triggerToast("No target contacts in this group!");
+                      return;
+                    }
+
+                    const logs = document.getElementById("campaign-logs");
+                    logs.innerHTML = `⏳ Initializing marketing campaign broadcast...<br/>`;
+                    logs.innerHTML += `📋 Selected target audience: ${aud} (${targets.length} recipients found)<br/>`;
+                    
+                    playAudioSfx('send');
+                    let delay = 1000;
+                    targets.forEach((t, i) => {
+                      setTimeout(() => {
+                        const filledMsg = msg.replace("{{name}}", t.name);
+                        logs.innerHTML += `📲 [${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}] Sent WhatsApp message to ${t.name} (${t.phone}): <span style="color: var(--accent-green)">SUCCESS</span><br/>`;
+                        addActivity(`Campaign broadcast sent to ${t.name}`, 'info');
+                        
+                        if (i === targets.length - 1) {
+                          setTimeout(() => {
+                            logs.innerHTML += `🎉 Broadcast Campaign completed! Sent successfully to ${targets.length} users.`;
+                            triggerToast(`Campaign sent to ${targets.length} users!`, 'green');
+                          }, 500);
+                        }
+                      }, delay);
+                      delay += 800;
+                    });
+                  }}
+                  className="btn-primary" 
+                  style={{ width: '100%', padding: '12px' }}
+                >
+                  🚀 Launch WhatsApp Broadcast Campaign
+                </button>
+              </div>
+
+              {/* Campaign Logs */}
+              <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <h4 style={{ fontWeight: 'bold', fontSize: '1rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} style={{ color: 'var(--accent-blue)' }} />
+                  Live Campaign Sending Console
+                </h4>
+                <div 
+                  id="campaign-logs"
+                  style={{ 
+                    flex: 1, 
+                    background: 'black', 
+                    color: '#00ff00', 
+                    fontFamily: 'monospace', 
+                    padding: '16px', 
+                    borderRadius: '8px', 
+                    fontSize: '0.8rem',
+                    overflowY: 'auto',
+                    minHeight: '200px',
+                    lineHeight: '1.5'
+                  }}
+                >
+                  [CONSOLE IDLE] Select target group and click "Launch WhatsApp Broadcast Campaign" to begin.
+                </div>
+              </div>
+
+            </div>
           </div>
         )}
 
@@ -3788,6 +4213,23 @@ Your main tasks are:
             </button>
           </h3>
           <p>Test the customer AI chat flow live</p>
+          
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border-light)', width: 'fit-content', margin: '8px auto 0 auto' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '500', color: isLiveAiMode ? 'var(--accent-purple)' : 'var(--text-muted)' }}>
+              {isLiveAiMode ? '🧠 Live Gemini AI Active' : '🤖 Offline Bot Mock'}
+            </span>
+            <label className="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={isLiveAiMode} 
+                onChange={(e) => {
+                  setIsLiveAiMode(e.target.checked);
+                  handleResetChat();
+                }} 
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
         </div>
 
         <div className="phone-mockup">
