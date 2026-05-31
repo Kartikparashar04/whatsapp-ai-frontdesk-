@@ -746,6 +746,26 @@ export default function App() {
     }
   }, [user]);
 
+  // Load Facebook JavaScript SDK on mount
+  useEffect(() => {
+    window.fbAsyncInit = function() {
+      window.FB.init({
+        appId            : '866864605823070',
+        autoLogAppEvents : true,
+        xfbml            : true,
+        version          : 'v21.0'
+      });
+    };
+
+    (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) return;
+      js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
+  }, []);
+
   // LocalStorage Synchronizers (scoped by user email)
   useEffect(() => {
     if (user && user.email) {
@@ -1458,6 +1478,71 @@ export default function App() {
         }).catch(err => console.error("Error syncing profile with backend:", err));
       }
     }
+  };
+
+  // Meta official FB login callback handler for Embedded Signup
+  const handleMetaLogin = () => {
+    if (!window.FB) {
+      triggerToast("Facebook SDK has not loaded yet. Please try again in a few seconds.", "red");
+      return;
+    }
+
+    window.FB.login((response) => {
+      if (response.authResponse) {
+        const accessToken = response.authResponse.accessToken;
+        triggerToast("Logged in with Facebook! Fetching WhatsApp details...", "blue");
+
+        // 1. Fetch user's WhatsApp Business Accounts
+        fetch(`https://graph.facebook.com/v21.0/me/whatsapp_business_accounts?access_token=${accessToken}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.data && data.data.length > 0) {
+              const accountId = data.data[0].id;
+              // 2. Fetch phone numbers associated with the first WABA account
+              fetch(`https://graph.facebook.com/v21.0/${accountId}/phone_numbers?access_token=${accessToken}`)
+                .then(res => res.json())
+                .then(phoneData => {
+                  if (phoneData && phoneData.data && phoneData.data.length > 0) {
+                    const phoneNumberId = phoneData.data[0].id;
+                    const phoneNumber = phoneData.data[0].display_phone_number;
+                    
+                    const updatedConfig = {
+                      accessToken: accessToken,
+                      phoneNumberId: phoneNumberId,
+                      accountId: accountId,
+                      phoneNumber: phoneNumber,
+                      isConnected: true
+                    };
+                    
+                    setWhatsappConfig(updatedConfig);
+                    triggerToast("WhatsApp connected successfully via Meta Embedded Signup!", "green");
+                    addActivity(`Connected WhatsApp account: ${phoneNumber} (ID: ${phoneNumberId})`, "success");
+                  } else {
+                    triggerToast("No phone numbers found in your Meta Business Account.", "red");
+                  }
+                })
+                .catch(err => {
+                  console.error("Error fetching phone numbers:", err);
+                  triggerToast("Failed to fetch phone numbers from Meta Business Account.", "red");
+                });
+            } else {
+              triggerToast("No WhatsApp Business Accounts found under this Facebook Profile.", "red");
+            }
+          })
+          .catch(err => {
+            console.error("Error fetching WABAs:", err);
+            triggerToast("Failed to fetch WhatsApp Business Accounts from Meta.", "red");
+          });
+      } else {
+        triggerToast("Facebook Embedded Signup flow cancelled or failed.", "red");
+      }
+    }, {
+      scope: 'whatsapp_business_management,whatsapp_business_messaging',
+      extras: {
+        feature: 'whatsapp_embedded_signup',
+        setup: {}
+      }
+    });
   };
 
   // Chat Simulator Message Processor
@@ -2617,8 +2702,8 @@ export default function App() {
         </div>
       )}
 
-      {/* META EMBEDDED SIGNUP SIMULATOR MODAL */}
-      {isMetaModalOpen && (
+      {/* META EMBEDDED SIGNUP SIMULATOR MODAL - DISABLED */}
+      {false && isMetaModalOpen && (
         <div className="modal-backdrop" style={{ zIndex: 1000 }}>
           <div className="glass-panel modal-dialog" style={{ background: '#f0f2f5', padding: '0', overflow: 'hidden', width: '100%', maxWidth: '580px', borderRadius: '16px', boxShadow: '0 24px 54px rgba(0,0,0,0.15)' }}>
             
@@ -3769,14 +3854,7 @@ export default function App() {
                       
                       <button 
                         type="button" 
-                        onClick={() => {
-                          setMetaStep(1);
-                          setMetaOtpInput('');
-                          setMetaPhoneInput(user.businessPhone || '');
-                          setMetaOtpSent(false);
-                          setMetaVerificationError('');
-                          setIsMetaModalOpen(true);
-                        }} 
+                        onClick={handleMetaLogin} 
                         className="btn-primary" 
                         style={{ background: '#1877f2', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px', boxShadow: '0 2px 6px rgba(24,119,242,0.3)' }}
                       >
