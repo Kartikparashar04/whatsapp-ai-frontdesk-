@@ -129,7 +129,7 @@ const playAudioSfx = (type) => {
 };
 
 // MULTI-STEP ONBOARDING WIZARD COMPONENT
-function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, triggerToast, addActivity }) {
+function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, triggerToast, addActivity, authenticatedFetch }) {
   const [step, setStep] = React.useState(1);
   const [niche, setNiche] = React.useState(user.niche || 'dental');
   const [businessName, setBusinessName] = React.useState('');
@@ -215,7 +215,7 @@ Your main tasks are:
     setUser(updatedUser);
     
     // Sync profile to backend Express server
-    fetch(`${BACKEND_URL}/v1/business-profile`, {
+    authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedUser)
@@ -628,7 +628,7 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         // 1. Fetch leads from WhatsApp backend
-        const resLeads = await fetch(`${BACKEND_URL}/v1/leads?email=${user.email}`);
+        const resLeads = await authenticatedFetch(`${BACKEND_URL}/v1/leads`);
         if (!resLeads.ok) return;
         const waLeads = await resLeads.json();
         
@@ -642,7 +642,7 @@ export default function App() {
         });
 
         // 2. Fetch appointments from WhatsApp backend
-        const resAppts = await fetch(`${BACKEND_URL}/v1/appointments?email=${user.email}`);
+        const resAppts = await authenticatedFetch(`${BACKEND_URL}/v1/appointments`);
         if (!resAppts.ok) return;
         const waAppts = await resAppts.json();
         
@@ -738,7 +738,7 @@ export default function App() {
       localStorage.setItem(`deskflow_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
       
       // Auto-sync WhatsApp config and phone ID to backend profiles mapping
-      fetch(`${BACKEND_URL}/v1/business-profile`, {
+      authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -811,13 +811,40 @@ export default function App() {
     ]);
   };
 
+  // Helper: Authenticated fetch wrapper injecting Firebase ID token in Authorization header
+  const authenticatedFetch = async (url, options = {}) => {
+    try {
+      const headers = { ...options.headers };
+      
+      // In Demo Mode, if the key is ChangeMe, we send the user email as a token fallback
+      if (firebaseConfig.apiKey.includes("ChangeMe")) {
+        const dummyToken = user ? user.email : 'default@deskflow.com';
+        headers['Authorization'] = `Bearer ${dummyToken}`;
+      } else if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken(true);
+        headers['Authorization'] = `Bearer ${token}`;
+      } else if (user) {
+        headers['Authorization'] = `Bearer ${user.email}`;
+      }
+
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      
+      return fetch(url, {
+        ...options,
+        headers
+      });
+    } catch (err) {
+      console.error("authenticatedFetch error:", err);
+      return fetch(url, options);
+    }
+  };
+
   // Sync User Login/Registration credentials to Backend SQLite database
   const syncUserToBackend = (userData) => {
     if (!userData || !userData.email) return;
     
-    fetch(`${BACKEND_URL}/v1/users`, {
+    authenticatedFetch(`${BACKEND_URL}/v1/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: userData.id || userData.email,
         name: userData.name || '',
@@ -1354,7 +1381,7 @@ export default function App() {
 
       // Sync credentials & phone ID with backend profile mapping
       if (user) {
-        fetch(`${BACKEND_URL}/v1/business-profile`, {
+        authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1376,7 +1403,7 @@ export default function App() {
 
       // Sync disconnect status with backend
       if (user) {
-        fetch(`${BACKEND_URL}/v1/business-profile`, {
+        authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1581,7 +1608,7 @@ export default function App() {
       triggerToast(`Removed lead: ${lead.name}`);
 
       // Sync deletion to backend
-      fetch(`${BACKEND_URL}/v1/leads/${leadId}`, {
+      authenticatedFetch(`${BACKEND_URL}/v1/leads/${leadId}`, {
         method: 'DELETE'
       }).catch(err => console.error("Error syncing lead deletion to backend:", err));
     }
@@ -1596,7 +1623,7 @@ export default function App() {
       triggerToast(`Removed appointment for: ${appt.name}`);
 
       // Sync deletion to backend
-      fetch(`${BACKEND_URL}/v1/appointments/${apptId}`, {
+      authenticatedFetch(`${BACKEND_URL}/v1/appointments/${apptId}`, {
         method: 'DELETE'
       }).catch(err => console.error("Error syncing appointment deletion to backend:", err));
     }
@@ -2226,6 +2253,7 @@ export default function App() {
         setNicheConfigs={setNicheConfigs}
         triggerToast={triggerToast}
         addActivity={addActivity}
+        authenticatedFetch={authenticatedFetch}
       />
     );
   }
@@ -3639,7 +3667,7 @@ Your main tasks are:
                   addActivity(`Updated business coordinates for ${updatedBusinessName}`, "success");
 
                    // Sync updated profile details to backend Express server
-                  fetch(`${BACKEND_URL}/v1/business-profile`, {
+                  authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
