@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "server": "node server.js",
     "get-tunnel": "node get_tunnel.js",
-    "subscribe-waba": "node subscribe_waba.js"
+    "subscribe-waba": "node subscribe_waba.js",
+    "postinstall": "npm rebuild sqlite3 --build-from-source"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",
