@@ -30,3 +30,6 @@ business_profile.json
 appointments.json
 leads.json
 subscribe_waba.js
+*.db
+database.db
+business_profiles.json

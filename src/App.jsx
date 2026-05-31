@@ -568,6 +568,7 @@ export default function App() {
 
       if (existingProfile) {
         setUser(existingProfile);
+        syncUserToBackend(existingProfile);
         triggerToast(`Welcome back, ${existingProfile.name}!`, 'green');
       } else {
         // Setup owner object using real Google account payload!
@@ -586,6 +587,7 @@ export default function App() {
           aiPersona: 'Friendly'
         };
         setUser(googleUser);
+        syncUserToBackend(googleUser);
         triggerToast(`Successfully signed in with Google as ${googleUser.name}! Complete onboarding to access your dashboard.`, 'green');
       }
       
@@ -809,6 +811,29 @@ export default function App() {
     ]);
   };
 
+  // Sync User Login/Registration credentials to Backend SQLite database
+  const syncUserToBackend = (userData) => {
+    if (!userData || !userData.email) return;
+    
+    fetch(`${BACKEND_URL}/v1/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: userData.id || userData.email,
+        name: userData.name || '',
+        email: userData.email,
+        phone: userData.phone || ''
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log("Synced user credentials with SQLite database:", data);
+    })
+    .catch(err => {
+      console.error("Failed to sync user credentials with SQLite:", err);
+    });
+  };
+
   // Auth: Recaptcha verification setup
   const setupRecaptcha = () => {
     try {
@@ -922,6 +947,7 @@ export default function App() {
           triggerToast(`OTP verified! Welcome to DeskFlow. Complete profile onboarding.`, 'green');
         }
         setUser(authUser);
+        syncUserToBackend(authUser);
         addActivity(`User verified via Phone OTP (Demo): ${phoneNumber}`, 'success');
       }, 1000);
       return;
@@ -962,6 +988,7 @@ export default function App() {
       }
 
       setUser(authUser);
+      syncUserToBackend(authUser);
       addActivity(`User verified via Phone OTP: ${userPhone}`, 'success');
       setIsAuthLoading(false);
     } catch (error) {
@@ -1050,6 +1077,7 @@ export default function App() {
       profiles[emailKey] = authUser;
       localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
       setUser(authUser);
+      syncUserToBackend(authUser);
       triggerToast("Account created successfully!", "green");
       addActivity(`New user registered via Email (Demo): ${email}`, 'success');
       
@@ -1104,6 +1132,7 @@ export default function App() {
             triggerToast(`Email verified successfully!`, 'green');
           }
           setUser(authUser);
+          syncUserToBackend(authUser);
           addActivity(`User verified via Email: ${email}`, 'success');
           setVerificationEmailSent(false);
           setEmailInput('');
@@ -1164,6 +1193,7 @@ export default function App() {
           triggerToast(`Welcome! Complete profile setup.`, 'green');
         }
         setUser(authUser);
+        syncUserToBackend(authUser);
         addActivity(`User signed in via Email (Demo): ${email}`, 'info');
         setEmailInput('');
         setPasswordInput('');
@@ -1214,6 +1244,7 @@ export default function App() {
       }
 
       setUser(authUser);
+      syncUserToBackend(authUser);
       addActivity(`User logged in via Email: ${firebaseUser.email}`, 'info');
       setIsAuthLoading(false);
       setEmailInput('');

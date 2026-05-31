@@ -5,6 +5,8 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 
 // Load environment variables
 dotenv.config();
@@ -45,6 +47,32 @@ async function initDatabases() {
   }
 }
 initDatabases();
+
+// SQLite Database initialization
+let db = null;
+async function initSQLite() {
+  try {
+    db = await open({
+      filename: path.join(process.cwd(), 'database.db'),
+      driver: sqlite3.Database
+    });
+    
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        phone TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('SQLite Database and users table initialized successfully!');
+  } catch (error) {
+    console.error('Failed to initialize SQLite Database:', error.message);
+  }
+}
+initSQLite();
 
 // Initialize Google Gemini AI SDK
 let aiClient = null;
@@ -201,6 +229,61 @@ app.post('/v1/business-profile', async (req, res) => {
     return res.status(200).json({ success: true, message: 'Business profile synced successfully!' });
   } catch (error) {
     console.error('Error saving business profile:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 3b. Receive user registration/login event and store credentials in SQLite DB
+ */
+app.post('/v1/users', async (req, res) => {
+  try {
+    const userData = req.body;
+    console.log('Received user credential sync request:', userData);
+    
+    if (!userData.email) {
+      return res.status(400).json({ success: false, error: 'Email parameter is required.' });
+    }
+
+    const emailKey = userData.email.toLowerCase();
+    const name = userData.name || emailKey.split('@')[0];
+    const phone = userData.phone || '';
+    const userId = userData.id || 'u-' + Date.now();
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    }
+
+    // Upsert into SQL table using SQLite supported UPSERT statement:
+    await db.run(`
+      INSERT INTO users (id, name, email, phone, last_login)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(email) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        last_login = CURRENT_TIMESTAMP
+    `, userId, name, emailKey, phone);
+
+    console.log(`[SQL Database] Successfully logged credential record for: ${emailKey}`);
+    return res.status(200).json({ success: true, message: 'User credential stored in SQL successfully!' });
+  } catch (error) {
+    console.error('Error saving user credential to SQL database:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 3c. GET registered users/credentials list from SQLite DB (for verification/admin lookup)
+ */
+app.get('/v1/users', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    }
+    const rows = await db.all('SELECT * FROM users ORDER BY last_login DESC');
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error fetching users from SQL database:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
