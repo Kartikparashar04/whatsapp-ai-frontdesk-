@@ -44,7 +44,11 @@ import {
   getAuth, 
   RecaptchaVerifier, 
   signInWithPhoneNumber,
-  signOut as firebaseSignOut
+  signOut as firebaseSignOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from 'firebase/auth';
 
 // Firebase Client Configuration
@@ -419,7 +423,8 @@ export default function App() {
     return local ? JSON.parse(local) : null;
   });
   
-  const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login
+  const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login, forgot_password
+  const [authMethod, setAuthMethod] = useState('phone'); // phone, email
   
   // Firebase Auth states
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -427,6 +432,11 @@ export default function App() {
   const [otpSent, setOtpSent] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   // Navigation & Niche Selection
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -961,6 +971,292 @@ export default function App() {
     }
   };
 
+  // Auth: Email/Password SignUp Handler
+  const handleEmailSignUp = async (e) => {
+    e.preventDefault();
+    const name = e.target.name?.value || '';
+    const email = emailInput.trim();
+    const password = passwordInput;
+    const selectedNiche = e.target.nicheType?.value || 'dental';
+
+    if (name.length < 2) {
+      alert("Please write a valid name.");
+      return;
+    }
+
+    if (firebaseConfig.apiKey.includes("ChangeMe")) {
+      setIsAuthLoading(true);
+      setTimeout(() => {
+        setIsAuthLoading(false);
+        setVerificationEmailSent(true);
+        triggerToast("Demo Mode: Verification OTP sent to email! (Use code 123456)", "purple");
+      }, 1000);
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      await sendEmailVerification(firebaseUser);
+      setVerificationEmailSent(true);
+      setIsAuthLoading(false);
+      triggerToast("Verification email sent! Please check your inbox.", "green");
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error creating email account:", error);
+      alert("Registration error: " + error.message);
+    }
+  };
+
+  // Auth: Verify Email OTP (Demo Mode)
+  const handleVerifyEmailOtp = (e) => {
+    e.preventDefault();
+    if (otpCode !== '123456') {
+      alert("Demo Mode: Invalid OTP. Use 123456.");
+      return;
+    }
+
+    setIsAuthLoading(true);
+    setTimeout(() => {
+      setIsAuthLoading(false);
+      
+      const email = emailInput.trim();
+      const emailKey = email.toLowerCase();
+      
+      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+      
+      const nameInputEl = document.querySelector('input[name="name"]');
+      const nicheSelectEl = document.querySelector('select[name="nicheType"]');
+      const name = nameInputEl?.value || 'User';
+      const selectedNiche = nicheSelectEl?.value || 'dental';
+
+      const authUser = {
+        name: name,
+        email: email,
+        avatar: name.substring(0, 1).toUpperCase(),
+        role: 'owner',
+        niche: selectedNiche,
+        isOnboarded: false,
+        businessName: '',
+        businessPhone: '',
+        businessAddress: '',
+        businessWebsite: '',
+        aiPersona: 'Friendly'
+      };
+
+      profiles[emailKey] = authUser;
+      localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+      setUser(authUser);
+      triggerToast("Account created successfully!", "green");
+      addActivity(`New user registered via Email (Demo): ${email}`, 'success');
+      
+      setVerificationEmailSent(false);
+      setEmailInput('');
+      setPasswordInput('');
+      setOtpCode('');
+    }, 1000);
+  };
+
+  // Auth: Check Email Verification (Real Mode)
+  const checkEmailVerification = async () => {
+    try {
+      setIsAuthLoading(true);
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) {
+        await firebaseUser.reload();
+        if (auth.currentUser.emailVerified) {
+          setIsAuthLoading(false);
+          const email = auth.currentUser.email;
+          const emailKey = email.toLowerCase();
+          
+          const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+          const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+          
+          const nameInputEl = document.querySelector('input[name="name"]');
+          const nicheSelectEl = document.querySelector('select[name="nicheType"]');
+          const name = nameInputEl?.value || email.split('@')[0];
+          const selectedNiche = nicheSelectEl?.value || 'dental';
+
+          let existingProfile = profiles[emailKey];
+          let authUser;
+          if (existingProfile) {
+            authUser = existingProfile;
+            triggerToast(`Welcome back, ${authUser.name}!`, 'green');
+          } else {
+            authUser = {
+              name: name,
+              email: email,
+              avatar: name.substring(0, 1).toUpperCase(),
+              role: 'owner',
+              niche: selectedNiche,
+              isOnboarded: false,
+              businessName: '',
+              businessPhone: '',
+              businessAddress: '',
+              businessWebsite: '',
+              aiPersona: 'Friendly'
+            };
+            profiles[emailKey] = authUser;
+            localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+            triggerToast(`Email verified successfully!`, 'green');
+          }
+          setUser(authUser);
+          addActivity(`User verified via Email: ${email}`, 'success');
+          setVerificationEmailSent(false);
+          setEmailInput('');
+          setPasswordInput('');
+        } else {
+          setIsAuthLoading(false);
+          alert("Email is not verified yet. Please check your inbox and click the verification link.");
+        }
+      } else {
+        setIsAuthLoading(false);
+        alert("No active session found. Please sign up again.");
+      }
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error reloading user info:", error);
+      alert("Error checking verification: " + error.message);
+    }
+  };
+
+  // Auth: Email/Password SignIn Handler
+  const handleEmailSignIn = async (e) => {
+    e.preventDefault();
+    const email = emailInput.trim();
+    const password = passwordInput;
+
+    if (firebaseConfig.apiKey.includes("ChangeMe")) {
+      setIsAuthLoading(true);
+      setTimeout(() => {
+        setIsAuthLoading(false);
+        const emailKey = email.toLowerCase();
+        
+        const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+        const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+        let existingProfile = profiles[emailKey];
+        
+        let authUser;
+        if (existingProfile) {
+          authUser = existingProfile;
+          triggerToast(`Welcome back, ${authUser.name}!`, 'green');
+        } else {
+          const prefix = email.split('@')[0];
+          const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+          authUser = {
+            name: name,
+            email: email,
+            avatar: name.substring(0, 1).toUpperCase(),
+            role: 'owner',
+            niche: 'dental',
+            isOnboarded: false,
+            businessName: '',
+            businessPhone: '',
+            businessAddress: '',
+            businessWebsite: '',
+            aiPersona: 'Friendly'
+          };
+          profiles[emailKey] = authUser;
+          localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+          triggerToast(`Welcome! Complete profile setup.`, 'green');
+        }
+        setUser(authUser);
+        addActivity(`User signed in via Email (Demo): ${email}`, 'info');
+        setEmailInput('');
+        setPasswordInput('');
+      }, 1000);
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      if (!firebaseUser.emailVerified) {
+        setIsAuthLoading(false);
+        alert("Please verify your email before logging in. A verification email has been sent to " + firebaseUser.email);
+        await sendEmailVerification(firebaseUser);
+        return;
+      }
+
+      const emailKey = firebaseUser.email.toLowerCase();
+      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+      let existingProfile = profiles[emailKey];
+
+      let authUser;
+      if (existingProfile) {
+        authUser = existingProfile;
+        triggerToast(`Welcome back, ${authUser.name}!`, 'green');
+      } else {
+        const prefix = firebaseUser.email.split('@')[0];
+        const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        authUser = {
+          name: name,
+          email: firebaseUser.email,
+          avatar: name.substring(0, 1).toUpperCase(),
+          role: 'owner',
+          niche: 'dental',
+          isOnboarded: false,
+          businessName: '',
+          businessPhone: '',
+          businessAddress: '',
+          businessWebsite: '',
+          aiPersona: 'Friendly'
+        };
+        profiles[emailKey] = authUser;
+        localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+        triggerToast(`Logged in successfully!`, 'green');
+      }
+
+      setUser(authUser);
+      addActivity(`User logged in via Email: ${firebaseUser.email}`, 'info');
+      setIsAuthLoading(false);
+      setEmailInput('');
+      setPasswordInput('');
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error signing in with email:", error);
+      alert("Sign-in failed: " + error.message);
+    }
+  };
+
+  // Auth: Send Password Reset Email
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    const email = emailInput.trim();
+    if (!email) {
+      alert("Please enter your email address.");
+      return;
+    }
+
+    if (firebaseConfig.apiKey.includes("ChangeMe")) {
+      setIsAuthLoading(true);
+      setTimeout(() => {
+        setIsAuthLoading(false);
+        setResetEmailSent(true);
+        triggerToast("Demo Mode: Reset password email simulated!", "purple");
+      }, 1000);
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setIsAuthLoading(false);
+      triggerToast("Password reset email sent successfully!", "green");
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error sending reset password email:", error);
+      alert("Error sending password reset: " + error.message);
+    }
+  };
+
   // Auth: Email/Password Login & Signup Handler (Admin / Legacy)
   const handleAuthSubmit = (e) => {
     e.preventDefault();
@@ -988,59 +1284,6 @@ export default function App() {
         return;
       }
     }
-
-    const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-    const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-    let existingProfile = profiles[email.toLowerCase()];
-
-    if (authMode === 'signup') {
-      const name = form.name.value;
-      const selectedNiche = form.nicheType.value;
-      if (name.length < 2) {
-        alert("Please write a valid name.");
-        return;
-      }
-      authUser = {
-        name: name,
-        email: email,
-        avatar: name.substring(0, 1).toUpperCase(),
-        role: 'owner',
-        niche: selectedNiche,
-        isOnboarded: false,
-        businessName: '',
-        businessPhone: '',
-        businessAddress: '',
-        businessWebsite: '',
-        aiPersona: 'Friendly'
-      };
-      triggerToast(`Account created! Complete onboarding to set up your business.`, 'green');
-    } else {
-      if (existingProfile) {
-        authUser = existingProfile;
-        triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-      } else {
-        const prefix = email.split('@')[0];
-        const derivedName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-        const derivedNiche = email.includes('salon') || email.includes('spa') ? 'salon' : 'dental';
-        authUser = {
-          name: derivedName,
-          email: email,
-          avatar: prefix.charAt(0).toUpperCase(),
-          role: 'owner',
-          niche: derivedNiche,
-          isOnboarded: false,
-          businessName: '',
-          businessPhone: '',
-          businessAddress: '',
-          businessWebsite: '',
-          aiPersona: 'Friendly'
-        };
-        triggerToast(`Welcome! Complete profile setup.`, 'green');
-      }
-    }
-
-    setUser(authUser);
-    addActivity(`User signed in: ${authUser.email}`, 'info');
   };
 
   // Auth: Logout
@@ -1533,30 +1776,79 @@ export default function App() {
             </div>
           )}
 
-          {authMode !== 'admin_login' && (
-            <div className="auth-tab-buttons" style={{ marginBottom: '16px' }}>
-              <button 
-                onClick={() => { setAuthMode('login'); setOtpSent(false); }} 
-                className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
-              >
-                Sign In with OTP
-              </button>
-              <button 
-                onClick={() => { setAuthMode('signup'); setOtpSent(false); }} 
-                className={`auth-tab-btn ${authMode === 'signup' ? 'active' : ''}`}
-              >
-                Create Account
-              </button>
+          {authMode !== 'admin_login' && authMode !== 'forgot_password' && !verificationEmailSent && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+              {/* Row 1: Auth Mode Toggle */}
+              <div className="auth-tab-buttons" style={{ marginBottom: '0' }}>
+                <button 
+                  onClick={() => { setAuthMode('login'); setOtpSent(false); }} 
+                  className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
+                  type="button"
+                >
+                  Sign In
+                </button>
+                <button 
+                  onClick={() => { setAuthMode('signup'); setOtpSent(false); }} 
+                  className={`auth-tab-btn ${authMode === 'signup' ? 'active' : ''}`}
+                  type="button"
+                >
+                  Create Account
+                </button>
+              </div>
+
+              {/* Row 2: Auth Method Toggle */}
+              <div style={{ display: 'flex', gap: '6px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', padding: '4px', border: '1px solid var(--border-light)' }}>
+                <button
+                  onClick={() => { setAuthMethod('phone'); setOtpSent(false); }}
+                  className={`auth-tab-btn`}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: '600',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: authMethod === 'phone' ? 'var(--accent-purple)' : 'transparent',
+                    color: authMethod === 'phone' ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  type="button"
+                >
+                  📲 Phone OTP
+                </button>
+                <button
+                  onClick={() => { setAuthMethod('email'); setOtpSent(false); }}
+                  className={`auth-tab-btn`}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: '600',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: authMethod === 'email' ? 'var(--accent-purple)' : 'transparent',
+                    color: authMethod === 'email' ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  type="button"
+                >
+                  ✉️ Email / Password
+                </button>
+              </div>
             </div>
           )}
 
           {/* OFFICIAL GOOGLE OAUTH CONTAINER */}
-          {authMode !== 'admin_login' && (
+          {authMode !== 'admin_login' && authMode !== 'forgot_password' && !verificationEmailSent && (
             <>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
                 <div id="google-signin-btn-container"></div>
               </div>
-              <div className="auth-divider">or use Phone Number</div>
+              <div className="auth-divider">
+                {authMethod === 'phone' ? 'or use Phone Number' : 'or use Email Address'}
+              </div>
             </>
           )}
 
@@ -1581,13 +1873,231 @@ export default function App() {
                 Login as SaaS Administrator
               </button>
             </form>
+          ) : authMode === 'forgot_password' ? (
+            <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                🔒 Enter your email address to receive a password reset link.
+              </div>
+
+              {resetEmailSent ? (
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '12px', fontSize: '0.8rem', color: 'var(--accent-green)', textAlign: 'center' }}>
+                  ✉️ Reset password link sent! Please check your inbox and follow the instructions.
+                </div>
+              ) : (
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Mail size={14} /> Email Address
+                  </label>
+                  <input 
+                    type="email" 
+                    required 
+                    value={emailInput} 
+                    onChange={(e) => setEmailInput(e.target.value)} 
+                    placeholder="name@business.com" 
+                  />
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isAuthLoading} 
+                className="btn-primary" 
+                style={{ width: '100%', marginTop: '8px', padding: '12px' }}
+              >
+                {isAuthLoading ? 'Sending...' : 'Send Password Reset Email'}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => { setAuthMode('login'); setResetEmailSent(false); }} 
+                className="btn-secondary" 
+                style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+              >
+                Back to Sign In
+              </button>
+            </form>
+          ) : verificationEmailSent ? (
+            <>
+              {firebaseConfig.apiKey.includes("ChangeMe") ? (
+                <form onSubmit={handleVerifyEmailOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                    📩 Simulated OTP sent to email: <strong style={{ color: 'white' }}>{emailInput}</strong>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock size={14} /> Enter 6-digit Email OTP
+                    </label>
+                    <input 
+                      type="text" 
+                      required 
+                      maxLength="6"
+                      value={otpCode} 
+                      onChange={(e) => setOtpCode(e.target.value)} 
+                      placeholder="e.g. 123456" 
+                      style={{ textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.2rem', fontWeight: 'bold' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={isAuthLoading} 
+                    className="btn-primary" 
+                    style={{ width: '100%', marginTop: '8px', padding: '12px', background: 'var(--accent-green)' }}
+                  >
+                    {isAuthLoading ? 'Verifying...' : 'Verify Code & Create Account 🚀'}
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={() => { setVerificationEmailSent(false); setOtpCode(''); }} 
+                    className="btn-secondary" 
+                    style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+                  >
+                    Back to Edit Email
+                  </button>
+                </form>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                    ✉️ Verification link sent to <strong style={{ color: 'white' }}>{emailInput}</strong>.
+                    <p style={{ marginTop: '8px' }}>Please check your inbox (and spam folder) and verify your account. Once verified, click the button below.</p>
+                  </div>
+
+                  <button 
+                    type="button" 
+                    onClick={checkEmailVerification}
+                    disabled={isAuthLoading} 
+                    className="btn-primary" 
+                    style={{ width: '100%', marginTop: '8px', padding: '12px', background: 'var(--accent-green)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                  >
+                    {isAuthLoading ? 'Checking...' : 'I have verified my email 🚀'}
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      try {
+                        if (auth.currentUser) {
+                          await sendEmailVerification(auth.currentUser);
+                          triggerToast("Verification email resent!", "green");
+                        }
+                      } catch (err) {
+                        alert("Error resending email: " + err.message);
+                      }
+                    }} 
+                    className="btn-secondary" 
+                    style={{ width: '100%', padding: '8px', fontSize: '0.8rem' }}
+                  >
+                    Resend Verification Email
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={() => { setVerificationEmailSent(false); }} 
+                    className="btn-secondary" 
+                    style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+                  >
+                    Back to Edit Sign Up Form
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <>
               {/* Invisible container for Firebase ReCAPTCHA */}
               <div id="recaptcha-container"></div>
 
-              {!otpSent ? (
-                <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {authMethod === 'phone' ? (
+                <>
+                  {!otpSent ? (
+                    <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {authMode === 'signup' && (
+                        <>
+                          <div className="form-group" style={{ marginBottom: '0' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <UserIcon size={14} /> Full Name
+                            </label>
+                            <input name="name" required placeholder="e.g. Kartik Gowda" />
+                          </div>
+                          
+                          <div className="form-group" style={{ marginBottom: '0' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Settings size={14} /> Business Category
+                            </label>
+                            <select name="nicheType" style={{ width: '100%' }}>
+                              <option value="dental">🦷 Dental Clinic</option>
+                              <option value="salon">💇‍♀️ Hair Salon & Spa</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="form-group" style={{ marginBottom: '0' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Smartphone size={14} /> Business Phone Number (with Country Code)
+                        </label>
+                        <input 
+                          type="tel" 
+                          required 
+                          value={phoneNumber} 
+                          onChange={(e) => setPhoneNumber(e.target.value)} 
+                          placeholder="e.g. +919876543210" 
+                        />
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        disabled={isAuthLoading} 
+                        className="btn-primary" 
+                        style={{ width: '100%', marginTop: '8px', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                      >
+                        {isAuthLoading ? 'Sending...' : 'Send Verification OTP'}
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                        📲 Verification OTP sent to <strong style={{ color: 'white' }}>{phoneNumber}</strong>
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: '0' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Lock size={14} /> Enter 6-digit Code
+                        </label>
+                        <input 
+                          type="text" 
+                          required 
+                          maxLength="6"
+                          value={otpCode} 
+                          onChange={(e) => setOtpCode(e.target.value)} 
+                          placeholder="e.g. 123456" 
+                          style={{ textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.2rem', fontWeight: 'bold' }}
+                        />
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        disabled={isAuthLoading} 
+                        className="btn-primary" 
+                        style={{ width: '100%', marginTop: '8px', padding: '12px', background: 'var(--accent-green)' }}
+                      >
+                        {isAuthLoading ? 'Verifying...' : 'Verify and Login 🚀'}
+                      </button>
+
+                      <button 
+                        type="button" 
+                        onClick={() => { setOtpSent(false); setOtpCode(''); }} 
+                        className="btn-secondary" 
+                        style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+                      >
+                        Change Phone Number / Resend SMS
+                      </button>
+                    </form>
+                  )}
+                </>
+              ) : (
+                <form onSubmit={authMode === 'signup' ? handleEmailSignUp : handleEmailSignIn} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {authMode === 'signup' && (
                     <>
                       <div className="form-group" style={{ marginBottom: '0' }}>
@@ -1611,14 +2121,27 @@ export default function App() {
 
                   <div className="form-group" style={{ marginBottom: '0' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Smartphone size={14} /> Business Phone Number (with Country Code)
+                      <Mail size={14} /> Email Address
                     </label>
                     <input 
-                      type="tel" 
+                      type="email" 
                       required 
-                      value={phoneNumber} 
-                      onChange={(e) => setPhoneNumber(e.target.value)} 
-                      placeholder="e.g. +919876543210" 
+                      value={emailInput} 
+                      onChange={(e) => setEmailInput(e.target.value)} 
+                      placeholder="e.g. owner@business.com" 
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock size={14} /> Password
+                    </label>
+                    <input 
+                      type="password" 
+                      required 
+                      value={passwordInput} 
+                      onChange={(e) => setPasswordInput(e.target.value)} 
+                      placeholder="••••••••" 
                     />
                   </div>
 
@@ -1628,47 +2151,19 @@ export default function App() {
                     className="btn-primary" 
                     style={{ width: '100%', marginTop: '8px', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                   >
-                    {isAuthLoading ? 'Sending...' : 'Send Verification OTP'}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                    📲 Verification OTP sent to <strong style={{ color: 'white' }}>{phoneNumber}</strong>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: '0' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Lock size={14} /> Enter 6-digit Code
-                    </label>
-                    <input 
-                      type="text" 
-                      required 
-                      maxLength="6"
-                      value={otpCode} 
-                      onChange={(e) => setOtpCode(e.target.value)} 
-                      placeholder="e.g. 123456" 
-                      style={{ textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.2rem', fontWeight: 'bold' }}
-                    />
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    disabled={isAuthLoading} 
-                    className="btn-primary" 
-                    style={{ width: '100%', marginTop: '8px', padding: '12px', background: 'var(--accent-green)' }}
-                  >
-                    {isAuthLoading ? 'Verifying...' : 'Verify and Login 🚀'}
+                    {isAuthLoading ? 'Processing...' : authMode === 'signup' ? 'Sign Up & Verify 🚀' : 'Sign In with Email 🚀'}
                   </button>
 
-                  <button 
-                    type="button" 
-                    onClick={() => { setOtpSent(false); setOtpCode(''); }} 
-                    className="btn-secondary" 
-                    style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
-                  >
-                    Change Phone Number / Resend SMS
-                  </button>
+                  {authMode === 'login' && (
+                    <button 
+                      type="button" 
+                      onClick={() => setAuthMode('forgot_password')} 
+                      className="btn-secondary" 
+                      style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
                 </form>
               )}
             </>

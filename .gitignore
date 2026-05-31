@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local environment variables and DBs
+.env
+meta_credentials.json
+business_profile.json
+appointments.json
+leads.json
+subscribe_waba.js
