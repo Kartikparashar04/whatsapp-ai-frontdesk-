@@ -39,6 +39,26 @@ import {
   INITIAL_REVIEWS, 
   NICHE_CONFIGS 
 } from './mockData';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber,
+  signOut as firebaseSignOut
+} from 'firebase/auth';
+
+// Firebase Client Configuration
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyPlaceholder_ChangeMe",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "deskflow-dummy.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "deskflow-dummy",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "deskflow-dummy.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:000000000000:web:00000000000000"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
 
 // Backend URL configuration (Vite environment variables)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
@@ -399,7 +419,14 @@ export default function App() {
     return local ? JSON.parse(local) : null;
   });
   
-  const [authMode, setAuthMode] = useState('login');
+  const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login
+  
+  // Firebase Auth states
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   // Navigation & Niche Selection
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -772,7 +799,169 @@ export default function App() {
     ]);
   };
 
-  // Auth: Email/Password Login & Signup Handler
+  // Auth: Recaptcha verification setup
+  const setupRecaptcha = () => {
+    try {
+      // Clear the element and existing verifier to prevent "already rendered" error!
+      const container = document.getElementById('recaptcha-container');
+      if (container) {
+        container.innerHTML = '';
+      }
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = null;
+      }
+      
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response) => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          // expired
+        }
+      });
+      window.recaptchaVerifier = verifier;
+      return verifier;
+    } catch (error) {
+      console.error("Recaptcha error:", error);
+      return null;
+    }
+  };
+
+  // Auth: Send OTP Handler
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    if (!phoneNumber) return;
+
+    if (firebaseConfig.apiKey.includes("ChangeMe")) {
+      setIsAuthLoading(true);
+      setTimeout(() => {
+        setIsAuthLoading(false);
+        setOtpSent(true);
+        triggerToast("Demo Mode: OTP sent successfully! (Use code 123456)", "purple");
+      }, 1000);
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      const appVerifier = setupRecaptcha();
+      if (!appVerifier) {
+        throw new Error("Failed to initialize Recaptcha.");
+      }
+      
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      setIsAuthLoading(false);
+      triggerToast("Verification SMS sent successfully!", "green");
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error sending SMS:", error);
+      alert("Error sending SMS: " + error.message);
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    }
+  };
+
+  // Auth: Verify OTP Handler
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otpCode) return;
+
+    if (firebaseConfig.apiKey.includes("ChangeMe")) {
+      if (otpCode !== '123456') {
+        alert("Demo Mode: Invalid OTP. Use 123456.");
+        return;
+      }
+      
+      setIsAuthLoading(true);
+      setTimeout(() => {
+        setIsAuthLoading(false);
+        const email = `${phoneNumber.replace('+', '')}@deskflow.com`;
+        const name = `Phone User (${phoneNumber})`;
+        
+        const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+        const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+        let existingProfile = profiles[email.toLowerCase()];
+
+        let authUser;
+        if (existingProfile) {
+          authUser = existingProfile;
+          triggerToast(`Welcome back, ${authUser.name}!`, 'green');
+        } else {
+          authUser = {
+            name: name,
+            email: email,
+            phone: phoneNumber,
+            avatar: 'P',
+            role: 'owner',
+            niche: 'dental',
+            isOnboarded: false,
+            businessName: '',
+            businessPhone: phoneNumber,
+            businessAddress: '',
+            businessWebsite: '',
+            aiPersona: 'Friendly'
+          };
+          triggerToast(`OTP verified! Welcome to DeskFlow. Complete profile onboarding.`, 'green');
+        }
+        setUser(authUser);
+        addActivity(`User verified via Phone OTP (Demo): ${phoneNumber}`, 'success');
+      }, 1000);
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      const result = await confirmationResult.confirm(otpCode);
+      const firebaseUser = result.user;
+      const userPhone = firebaseUser.phoneNumber;
+      const email = `${userPhone.replace('+', '')}@deskflow.com`;
+      const name = `User (${userPhone})`;
+
+      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+      let existingProfile = profiles[email.toLowerCase()];
+
+      let authUser;
+      if (existingProfile) {
+        authUser = existingProfile;
+        triggerToast(`Welcome back, ${authUser.name}!`, 'green');
+      } else {
+        authUser = {
+          name: name,
+          email: email,
+          phone: userPhone,
+          avatar: 'P',
+          role: 'owner',
+          niche: 'dental',
+          isOnboarded: false,
+          businessName: '',
+          businessPhone: userPhone,
+          businessAddress: '',
+          businessWebsite: '',
+          aiPersona: 'Friendly'
+        };
+        triggerToast(`OTP verified! Welcome to DeskFlow. Complete profile onboarding.`, 'green');
+      }
+
+      setUser(authUser);
+      addActivity(`User verified via Phone OTP: ${userPhone}`, 'success');
+      setIsAuthLoading(false);
+    } catch (error) {
+      setIsAuthLoading(false);
+      console.error("Error verifying code:", error);
+      alert("Invalid verification code. Please check and try again.");
+    }
+  };
+
+  // Auth: Email/Password Login & Signup Handler (Admin / Legacy)
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     const form = e.target;
@@ -788,7 +977,7 @@ export default function App() {
           email: 'admin@deskflow.com',
           avatar: 'A',
           role: 'admin',
-          isOnboarded: true // Admin is pre-onboarded
+          isOnboarded: true
         };
         setUser(authUser);
         triggerToast("Logged in as SaaS Super Admin", "green");
@@ -817,7 +1006,7 @@ export default function App() {
         avatar: name.substring(0, 1).toUpperCase(),
         role: 'owner',
         niche: selectedNiche,
-        isOnboarded: false, // Start onboarding
+        isOnboarded: false,
         businessName: '',
         businessPhone: '',
         businessAddress: '',
@@ -826,12 +1015,10 @@ export default function App() {
       };
       triggerToast(`Account created! Complete onboarding to set up your business.`, 'green');
     } else {
-      // Login
       if (existingProfile) {
         authUser = existingProfile;
         triggerToast(`Welcome back, ${authUser.name}!`, 'green');
       } else {
-        // Fallback for demo users that don't have a profile yet
         const prefix = email.split('@')[0];
         const derivedName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
         const derivedNiche = email.includes('salon') || email.includes('spa') ? 'salon' : 'dental';
@@ -841,7 +1028,7 @@ export default function App() {
           avatar: prefix.charAt(0).toUpperCase(),
           role: 'owner',
           niche: derivedNiche,
-          isOnboarded: false, // Start onboarding
+          isOnboarded: false,
           businessName: '',
           businessPhone: '',
           businessAddress: '',
@@ -859,8 +1046,15 @@ export default function App() {
   // Auth: Logout
   const handleLogOut = () => {
     playAudioSfx('send');
+    if (auth.currentUser) {
+      firebaseSignOut(auth).catch(err => console.error("Firebase Signout Error", err));
+    }
     setUser(null);
     setActiveTab('dashboard');
+    setOtpSent(false);
+    setPhoneNumber('');
+    setOtpCode('');
+    setConfirmationResult(null);
     triggerToast("Logged out successfully.");
   };
 
@@ -1301,101 +1495,194 @@ export default function App() {
           </div>
 
           {/* Test credentials warning */}
-          <div style={{
-            background: 'rgba(139, 92, 246, 0.06)',
-            border: '1px solid rgba(139, 92, 246, 0.15)',
-            borderRadius: '10px',
-            padding: '12px',
-            marginBottom: '16px',
-            fontSize: '0.75rem',
-            lineHeight: '1.4',
-            color: 'var(--text-secondary)'
-          }}>
-            <p style={{ fontWeight: '700', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-              <Shield size={12} /> Demo Roles (Admin vs Owner):
-            </p>
-            • Admin: Email: <code style={{ color: 'white' }}>admin@deskflow.com</code> | Password: <code style={{ color: 'white' }}>admin123</code> (Manages all niches)<br />
-            • Owner: Sign up or Google Login (Accesses only their own niche profile)
-          </div>
+          {/* Firebase API Key Missing Warning (Demo Mode Banner) */}
+          {firebaseConfig.apiKey.includes("ChangeMe") && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: '10px',
+              padding: '12px',
+              marginBottom: '16px',
+              fontSize: '0.75rem',
+              lineHeight: '1.4',
+              color: 'var(--text-secondary)'
+            }}>
+              <p style={{ fontWeight: '700', color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                <AlertTriangle size={12} /> Firebase Demo Mode Active:
+              </p>
+              Real SMS OTP verification requires Firebase credentials. You can enter any phone number and use verification code <code style={{ color: 'white', fontWeight: 'bold' }}>123456</code> to test login.
+            </div>
+          )}
 
-          <div className="auth-tab-buttons">
-            <button 
-              onClick={() => setAuthMode('login')} 
-              className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
-            >
-              Sign In
-            </button>
-            <button 
-              onClick={() => setAuthMode('signup')} 
-              className={`auth-tab-btn ${authMode === 'signup' ? 'active' : ''}`}
-            >
-              Create Account
-            </button>
-          </div>
+          {/* Test credentials warning for Admin Only */}
+          {authMode === 'admin_login' && (
+            <div style={{
+              background: 'rgba(139, 92, 246, 0.06)',
+              border: '1px solid rgba(139, 92, 246, 0.15)',
+              borderRadius: '10px',
+              padding: '12px',
+              marginBottom: '16px',
+              fontSize: '0.75rem',
+              lineHeight: '1.4',
+              color: 'var(--text-secondary)'
+            }}>
+              <p style={{ fontWeight: '700', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                <Shield size={12} /> SaaS Administrator Login:
+              </p>
+              Email: <code style={{ color: 'white' }}>admin@deskflow.com</code> | Password: <code style={{ color: 'white' }}>admin123</code>
+            </div>
+          )}
+
+          {authMode !== 'admin_login' && (
+            <div className="auth-tab-buttons" style={{ marginBottom: '16px' }}>
+              <button 
+                onClick={() => { setAuthMode('login'); setOtpSent(false); }} 
+                className={`auth-tab-btn ${authMode === 'login' ? 'active' : ''}`}
+              >
+                Sign In with OTP
+              </button>
+              <button 
+                onClick={() => { setAuthMode('signup'); setOtpSent(false); }} 
+                className={`auth-tab-btn ${authMode === 'signup' ? 'active' : ''}`}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
 
           {/* OFFICIAL GOOGLE OAUTH CONTAINER */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-            <div id="google-signin-btn-container"></div>
-          </div>
+          {authMode !== 'admin_login' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+                <div id="google-signin-btn-container"></div>
+              </div>
+              <div className="auth-divider">or use Phone Number</div>
+            </>
+          )}
 
-          <div className="auth-divider">or use credentials</div>
+          {/* Render forms depending on authMode */}
+          {authMode === 'admin_login' ? (
+            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ marginBottom: '0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Mail size={14} /> Admin Email
+                </label>
+                <input type="email" name="email" required placeholder="admin@deskflow.com" defaultValue="admin@deskflow.com" />
+              </div>
 
-          <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {authMode === 'signup' && (
-              <>
-                <div className="form-group" style={{ marginBottom: '0' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <UserIcon size={14} /> Full Name
-                  </label>
-                  <input name="name" required placeholder="e.g. Kartik Gowda" />
-                </div>
-                
-                <div className="form-group" style={{ marginBottom: '0' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Settings size={14} /> Business Category
-                  </label>
-                  <select name="nicheType" style={{ width: '100%' }}>
-                    <option value="dental">🦷 Dental Clinic</option>
-                    <option value="salon">💇‍♀️ Hair Salon & Spa</option>
-                  </select>
-                </div>
-              </>
-            )}
+              <div className="form-group" style={{ marginBottom: '0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Lock size={14} /> Admin Password
+                </label>
+                <input type="password" name="password" required placeholder="••••••••" defaultValue="admin123" />
+              </div>
 
-            <div className="form-group" style={{ marginBottom: '0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Mail size={14} /> Business Email
-              </label>
-              <input type="email" name="email" required placeholder="e.g. owner@clinic.com" />
-            </div>
+              <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px', padding: '12px' }}>
+                Login as SaaS Administrator
+              </button>
+            </form>
+          ) : (
+            <>
+              {/* Invisible container for Firebase ReCAPTCHA */}
+              <div id="recaptcha-container"></div>
 
-            <div className="form-group" style={{ marginBottom: '0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Lock size={14} /> Password
-              </label>
-              <input type="password" name="password" required placeholder="••••••••" />
-            </div>
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {authMode === 'signup' && (
+                    <>
+                      <div className="form-group" style={{ marginBottom: '0' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <UserIcon size={14} /> Full Name
+                        </label>
+                        <input name="name" required placeholder="e.g. Kartik Gowda" />
+                      </div>
+                      
+                      <div className="form-group" style={{ marginBottom: '0' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Settings size={14} /> Business Category
+                        </label>
+                        <select name="nicheType" style={{ width: '100%' }}>
+                          <option value="dental">🦷 Dental Clinic</option>
+                          <option value="salon">💇‍♀️ Hair Salon & Spa</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
 
-            <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px', padding: '12px' }}>
-              {authMode === 'login' ? 'Sign In to Dashboard' : 'Complete Setup'}
-            </button>
-          </form>
+                  <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Smartphone size={14} /> Business Phone Number (with Country Code)
+                    </label>
+                    <input 
+                      type="tel" 
+                      required 
+                      value={phoneNumber} 
+                      onChange={(e) => setPhoneNumber(e.target.value)} 
+                      placeholder="e.g. +919876543210" 
+                    />
+                  </div>
 
-          <p className="auth-footer-text">
-            {authMode === 'login' ? (
-              <>
-                New to DeskFlow?{' '}
-                <span className="auth-footer-link" onClick={() => setAuthMode('signup')}>
-                  Create account
-                </span>
-              </>
+                  <button 
+                    type="submit" 
+                    disabled={isAuthLoading} 
+                    className="btn-primary" 
+                    style={{ width: '100%', marginTop: '8px', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                  >
+                    {isAuthLoading ? 'Sending...' : 'Send Verification OTP'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                    📲 Verification OTP sent to <strong style={{ color: 'white' }}>{phoneNumber}</strong>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock size={14} /> Enter 6-digit Code
+                    </label>
+                    <input 
+                      type="text" 
+                      required 
+                      maxLength="6"
+                      value={otpCode} 
+                      onChange={(e) => setOtpCode(e.target.value)} 
+                      placeholder="e.g. 123456" 
+                      style={{ textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.2rem', fontWeight: 'bold' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={isAuthLoading} 
+                    className="btn-primary" 
+                    style={{ width: '100%', marginTop: '8px', padding: '12px', background: 'var(--accent-green)' }}
+                  >
+                    {isAuthLoading ? 'Verifying...' : 'Verify and Login 🚀'}
+                  </button>
+
+                  <button 
+                    type="button" 
+                    onClick={() => { setOtpSent(false); setOtpCode(''); }} 
+                    className="btn-secondary" 
+                    style={{ width: '100%', borderColor: 'transparent', padding: '6px', fontSize: '0.75rem' }}
+                  >
+                    Change Phone Number / Resend SMS
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
+          <p className="auth-page-footer-text" style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem' }}>
+            {authMode === 'admin_login' ? (
+              <span className="auth-footer-link" onClick={() => setAuthMode('login')} style={{ cursor: 'pointer', color: 'var(--accent-purple)' }}>
+                Back to Phone OTP Login
+              </span>
             ) : (
-              <>
-                Already have an account?{' '}
-                <span className="auth-footer-link" onClick={() => setAuthMode('login')}>
-                  Sign in
-                </span>
-              </>
+              <span className="auth-footer-link" onClick={() => setAuthMode('admin_login')} style={{ cursor: 'pointer', color: 'var(--accent-purple)' }}>
+                SaaS Administrator Login
+              </span>
             )}
           </p>
         </div>
