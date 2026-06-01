@@ -67,7 +67,7 @@ const auth = getAuth(firebaseApp);
 // Backend URL configuration (Vite environment variables)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
   (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-    ? 'https://deskflow-backend-vlc0.onrender.com'
+    ? 'https://app.frontdeskai.shop'
     : 'http://localhost:3000');
 
 
@@ -672,6 +672,7 @@ export default function App() {
           // Normalize appointments with local active niche
           const normalizedAppts = waAppts.map(appt => ({
             ...appt,
+            dateTime: appt.dateTime || appt.date_time || '',
             niche: appt.niche || activeNiche
           }));
 
@@ -832,6 +833,9 @@ export default function App() {
     const hasConflict = appointments.some(appt => 
       appt.niche === activeNiche && 
       appt.status === 'confirmed' &&
+      appt.dateTime && selectedBookingTime &&
+      typeof appt.dateTime === 'string' &&
+      typeof selectedBookingTime === 'string' &&
       appt.dateTime.substring(0, 16) === selectedBookingTime.substring(0, 16)
     );
     if (hasConflict) {
@@ -882,7 +886,7 @@ export default function App() {
       
       // In Demo Mode, if the key is ChangeMe, we send the user email as a token fallback
       if (firebaseConfig.apiKey.includes("ChangeMe")) {
-        const dummyToken = user ? user.email : 'default@deskflow.com';
+        const dummyToken = user ? user.email : 'kartikparashar15@gmail.com';
         headers['Authorization'] = `Bearer ${dummyToken}`;
       } else if (auth.currentUser) {
         const token = await auth.currentUser.getIdToken(true);
@@ -2530,7 +2534,10 @@ export default function App() {
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', overflowY: 'auto', maxHeight: '60px' }}>
                   {cellAppts.map(appt => {
-                    const time = new Date(appt.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const parsedDate = appt.dateTime ? new Date(appt.dateTime) : null;
+                    const time = (parsedDate && !isNaN(parsedDate.getTime())) 
+                      ? parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                      : '';
                     return (
                       <div 
                         key={appt.id} 
@@ -3511,6 +3518,9 @@ export default function App() {
                     a.id !== appt.id && 
                     a.niche === activeNiche && 
                     a.status === 'confirmed' &&
+                    a.dateTime && appt.dateTime &&
+                    typeof a.dateTime === 'string' &&
+                    typeof appt.dateTime === 'string' &&
                     a.dateTime.substring(0, 16) === appt.dateTime.substring(0, 16)
                   );
                   const isConflicting = conflict.length > 0;
@@ -3847,20 +3857,67 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '16px 8px', display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                        Connect your business WhatsApp number instantly using Meta's official Embedded Signup flow. No manual developer token generation needed!
-                      </p>
-                      
-                      <button 
-                        type="button" 
-                        onClick={handleMetaLogin} 
-                        className="btn-primary" 
-                        style={{ background: '#1877f2', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px', boxShadow: '0 2px 6px rgba(24,119,242,0.3)' }}
-                      >
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                        <span>Connect with Meta (Embedded Signup)</span>
-                      </button>
+                    <div style={{ padding: '16px 8px', display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'stretch' }}>
+                      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                          Connect your business WhatsApp number instantly using Meta's official Embedded Signup flow. No manual developer token generation needed!
+                        </p>
+                        
+                        <button 
+                          type="button" 
+                          onClick={handleMetaLogin} 
+                          className="btn-primary" 
+                          style={{ background: '#1877f2', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px', justifyContent: 'center', boxShadow: '0 2px 6px rgba(24,119,242,0.3)' }}
+                        >
+                          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                          <span>Connect with Meta (Embedded Signup)</span>
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0' }}>
+                        <div style={{ flexGrow: 1, height: '1px', background: 'var(--border-light)' }}></div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>OR LINK MANUALLY</span>
+                        <div style={{ flexGrow: 1, height: '1px', background: 'var(--border-light)' }}></div>
+                      </div>
+
+                      <form onSubmit={handleSaveWhatsAppConfig} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div className="form-group" style={{ margin: '0' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Meta Access Token</label>
+                          <input 
+                            name="accessToken" 
+                            type="text" 
+                            placeholder="Paste your Meta Access Token here (Temporary or System User)" 
+                            required 
+                            style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: '0' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Phone Number ID</label>
+                          <input 
+                            name="phoneNumberId" 
+                            type="text" 
+                            placeholder="e.g. 1168815362979106" 
+                            required 
+                            style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ margin: '0' }}>
+                          <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>WhatsApp Business Account ID</label>
+                          <input 
+                            name="accountId" 
+                            type="text" 
+                            placeholder="e.g. 238128912389104" 
+                            required 
+                            style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
+                          />
+                        </div>
+
+                        <button type="submit" className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.8rem', marginTop: '4px' }}>
+                          Link Credentials Manually 🚀
+                        </button>
+                      </form>
                     </div>
                   )}
                 </div>
