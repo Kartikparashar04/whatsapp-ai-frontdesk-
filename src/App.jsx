@@ -54,9 +54,9 @@ import {
 // Firebase Client Configuration
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyPlaceholder_ChangeMe",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "deskflow-dummy.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "deskflow-dummy",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "deskflow-dummy.appspot.com",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "frontdesk-dummy.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "frontdesk-dummy",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "frontdesk-dummy.appspot.com",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:000000000000:web:00000000000000"
 };
@@ -189,7 +189,7 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
   const handleComplete = (e) => {
     e.preventDefault();
     
-    const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+    const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
     const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
     
     const updatedUser = {
@@ -203,8 +203,8 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
       aiPersona: aiPersona
     };
     
-    localStorage.setItem('deskflow_user', JSON.stringify(updatedUser));
-    localStorage.setItem('deskflow_user_profiles', JSON.stringify({
+    localStorage.setItem('frontdesk_user', JSON.stringify(updatedUser));
+    localStorage.setItem('frontdesk_user_profiles', JSON.stringify({
       ...profiles,
       [user.email.toLowerCase()]: updatedUser
     }));
@@ -226,7 +226,7 @@ Your main tasks are:
     };
     
     setNicheConfigs(updatedConfigs);
-    localStorage.setItem('deskflow_configs', JSON.stringify(updatedConfigs));
+    localStorage.setItem('frontdesk_configs', JSON.stringify(updatedConfigs));
     
     setUser(updatedUser);
     
@@ -237,7 +237,7 @@ Your main tasks are:
       body: JSON.stringify(updatedUser)
     }).catch(err => console.error("Error syncing profile with backend:", err));
 
-    triggerToast("Your business profile has been initialized! Welcome to DeskFlow!", "green");
+    triggerToast("Your business profile has been initialized! Welcome to FrontDesk!", "green");
     addActivity(`New business profile onboarded: ${businessName} (${niche})`, 'success');
   };
 
@@ -435,7 +435,7 @@ Your main tasks are:
 export default function App() {
   // Auth Session State
   const [user, setUser] = useState(() => {
-    const local = localStorage.getItem('deskflow_user');
+    const local = localStorage.getItem('frontdesk_user');
     return local ? JSON.parse(local) : null;
   });
   
@@ -460,33 +460,33 @@ export default function App() {
   
   // App States
   const [leads, setLeads] = useState(() => {
-    const local = localStorage.getItem('deskflow_leads');
+    const local = localStorage.getItem('frontdesk_leads');
     return local ? JSON.parse(local) : [];
   });
   
   const [appointments, setAppointments] = useState(() => {
-    const local = localStorage.getItem('deskflow_appts');
+    const local = localStorage.getItem('frontdesk_appts');
     return local ? JSON.parse(local) : [];
   });
   
   const [referrals, setReferrals] = useState(() => {
-    const local = localStorage.getItem('deskflow_referrals');
+    const local = localStorage.getItem('frontdesk_referrals');
     return local ? JSON.parse(local) : [];
   });
   
   const [reviews, setReviews] = useState(() => {
-    const local = localStorage.getItem('deskflow_reviews');
+    const local = localStorage.getItem('frontdesk_reviews');
     return local ? JSON.parse(local) : [];
   });
 
   const [nicheConfigs, setNicheConfigs] = useState(() => {
-    const local = localStorage.getItem('deskflow_configs');
+    const local = localStorage.getItem('frontdesk_configs');
     return local ? JSON.parse(local) : NICHE_CONFIGS;
   });
 
   // WhatsApp Business API Config State
   const [whatsappConfig, setWhatsappConfig] = useState(() => {
-    const local = localStorage.getItem('deskflow_wa_config');
+    const local = localStorage.getItem('frontdesk_wa_config');
     return local ? JSON.parse(local) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false };
   });
 
@@ -705,22 +705,22 @@ export default function App() {
     if (user && user.email) {
       const emailKey = user.email.toLowerCase();
       
-      const localLeads = localStorage.getItem(`deskflow_leads_${emailKey}`);
+      const localLeads = localStorage.getItem(`frontdesk_leads_${emailKey}`);
       setLeads(localLeads ? JSON.parse(localLeads) : []);
 
-      const localAppts = localStorage.getItem(`deskflow_appts_${emailKey}`);
+      const localAppts = localStorage.getItem(`frontdesk_appts_${emailKey}`);
       setAppointments(localAppts ? JSON.parse(localAppts) : []);
 
-      const localReferrals = localStorage.getItem(`deskflow_referrals_${emailKey}`);
+      const localReferrals = localStorage.getItem(`frontdesk_referrals_${emailKey}`);
       setReferrals(localReferrals ? JSON.parse(localReferrals) : []);
 
-      const localReviews = localStorage.getItem(`deskflow_reviews_${emailKey}`);
+      const localReviews = localStorage.getItem(`frontdesk_reviews_${emailKey}`);
       setReviews(localReviews ? JSON.parse(localReviews) : []);
 
-      const localConfigs = localStorage.getItem(`deskflow_configs_${emailKey}`);
+      const localConfigs = localStorage.getItem(`frontdesk_configs_${emailKey}`);
       setNicheConfigs(localConfigs ? JSON.parse(localConfigs) : NICHE_CONFIGS);
 
-      const localWaConfig = localStorage.getItem(`deskflow_wa_config_${emailKey}`);
+      const localWaConfig = localStorage.getItem(`frontdesk_wa_config_${emailKey}`);
       setWhatsappConfig(localWaConfig ? JSON.parse(localWaConfig) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
     } else {
       // Clear/Reset to default states when logged out
@@ -756,37 +756,37 @@ export default function App() {
   // LocalStorage Synchronizers (scoped by user email)
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_leads_${user.email.toLowerCase()}`, JSON.stringify(leads));
+      localStorage.setItem(`frontdesk_leads_${user.email.toLowerCase()}`, JSON.stringify(leads));
     }
   }, [leads, user]);
 
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_appts_${user.email.toLowerCase()}`, JSON.stringify(appointments));
+      localStorage.setItem(`frontdesk_appts_${user.email.toLowerCase()}`, JSON.stringify(appointments));
     }
   }, [appointments, user]);
 
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_referrals_${user.email.toLowerCase()}`, JSON.stringify(referrals));
+      localStorage.setItem(`frontdesk_referrals_${user.email.toLowerCase()}`, JSON.stringify(referrals));
     }
   }, [referrals, user]);
 
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_reviews_${user.email.toLowerCase()}`, JSON.stringify(reviews));
+      localStorage.setItem(`frontdesk_reviews_${user.email.toLowerCase()}`, JSON.stringify(reviews));
     }
   }, [reviews, user]);
 
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_configs_${user.email.toLowerCase()}`, JSON.stringify(nicheConfigs));
+      localStorage.setItem(`frontdesk_configs_${user.email.toLowerCase()}`, JSON.stringify(nicheConfigs));
     }
   }, [nicheConfigs, user]);
 
   useEffect(() => {
     if (user && user.email) {
-      localStorage.setItem(`deskflow_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
+      localStorage.setItem(`frontdesk_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
       
       // Auto-sync WhatsApp config and phone ID to backend profiles mapping
       authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
@@ -804,9 +804,9 @@ export default function App() {
   // Save/Remove session key
   useEffect(() => {
     if (user) {
-      localStorage.setItem('deskflow_user', JSON.stringify(user));
+      localStorage.setItem('frontdesk_user', JSON.stringify(user));
     } else {
-      localStorage.removeItem('deskflow_user');
+      localStorage.removeItem('frontdesk_user');
     }
   }, [user]);
 
@@ -918,14 +918,14 @@ export default function App() {
   // Helper: Try to restore user profile from backend SQLite DB on login
   const resolveUserProfileAndSetSession = async (authUser) => {
     const emailKey = authUser.email.toLowerCase();
-    const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+    const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
     const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
     let existingProfile = profiles[emailKey];
 
     // Use local storage profile temporarily if found
     let initialUser = existingProfile || authUser;
     setUser(initialUser);
-    localStorage.setItem('deskflow_user', JSON.stringify(initialUser));
+    localStorage.setItem('frontdesk_user', JSON.stringify(initialUser));
 
     // Fetch the actual profile from the backend SQLite DB to get the latest database data
     try {
@@ -947,11 +947,11 @@ export default function App() {
             isOnboarded: true
           };
           setUser(fullProfile);
-          localStorage.setItem('deskflow_user', JSON.stringify(fullProfile));
+          localStorage.setItem('frontdesk_user', JSON.stringify(fullProfile));
           
           // Save to profiles list
           profiles[emailKey] = fullProfile;
-          localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+          localStorage.setItem('frontdesk_user_profiles', JSON.stringify(profiles));
           
           triggerToast(`Welcome back, ${fullProfile.name}!`, 'green');
           addActivity(`Logged in and restored profile from database: ${fullProfile.email}`, 'success');
@@ -1052,7 +1052,7 @@ export default function App() {
       setIsAuthLoading(true);
       setTimeout(() => {
         setIsAuthLoading(false);
-        const email = `${phoneNumber.replace('+', '')}@deskflow.com`;
+        const email = `${phoneNumber.replace('+', '')}@frontdesk.com`;
         const name = `Phone User (${phoneNumber})`;
         
         const authUser = {
@@ -1080,7 +1080,7 @@ export default function App() {
       const result = await confirmationResult.confirm(otpCode);
       const firebaseUser = result.user;
       const userPhone = firebaseUser.phoneNumber;
-      const email = `${userPhone.replace('+', '')}@deskflow.com`;
+      const email = `${userPhone.replace('+', '')}@frontdesk.com`;
       const name = `User (${userPhone})`;
 
       const authUser = {
@@ -1161,7 +1161,7 @@ export default function App() {
       const email = emailInput.trim();
       const emailKey = email.toLowerCase();
       
-      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+      const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
       const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
       
       const nameInputEl = document.querySelector('input[name="name"]');
@@ -1360,11 +1360,11 @@ export default function App() {
 
     let authUser = null;
 
-    if (email.trim().toLowerCase() === 'admin@deskflow.com') {
+    if (email.trim().toLowerCase() === 'admin@frontdesk.com') {
       if (password === 'admin123') {
         authUser = {
           name: 'SaaS Super Admin',
-          email: 'admin@deskflow.com',
+          email: 'admin@frontdesk.com',
           avatar: 'A',
           role: 'admin',
           isOnboarded: true
@@ -1862,7 +1862,7 @@ export default function App() {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `deskflow_leads_${activeNiche}.csv`);
+      link.setAttribute("download", `frontdesk_leads_${activeNiche}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1940,7 +1940,7 @@ export default function App() {
         <div className="glass-panel auth-card-panel">
           <div className="auth-card-header">
             <div className="logo-icon" style={{ margin: '0 auto', width: '42px', height: '42px', fontSize: '1.4rem' }}>D</div>
-            <h1 className="auth-card-title">DeskFlow AI</h1>
+            <h1 className="auth-card-title">FrontDesk AI</h1>
             <p className="auth-card-subtitle">WhatsApp AI Front Desk for Local Businesses</p>
           </div>
 
@@ -1979,7 +1979,7 @@ export default function App() {
               <p style={{ fontWeight: '700', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                 <Shield size={12} /> SaaS Administrator Login:
               </p>
-              Email: <code style={{ color: 'white' }}>admin@deskflow.com</code> | Password: <code style={{ color: 'white' }}>admin123</code>
+              Email: <code style={{ color: 'white' }}>admin@frontdesk.com</code> | Password: <code style={{ color: 'white' }}>admin123</code>
             </div>
           )}
 
@@ -2066,7 +2066,7 @@ export default function App() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Mail size={14} /> Admin Email
                 </label>
-                <input type="email" name="email" required placeholder="admin@deskflow.com" defaultValue="admin@deskflow.com" />
+                <input type="email" name="email" required placeholder="admin@frontdesk.com" defaultValue="admin@frontdesk.com" />
               </div>
 
               <div className="form-group" style={{ marginBottom: '0' }}>
@@ -2726,9 +2726,9 @@ export default function App() {
               {/* STEP 1: Sign in with Facebook Profile */}
               {metaStep === 1 && (
                 <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-slide-in">
-                  <h4 style={{ fontWeight: '700', fontSize: '1.1rem', color: '#1c1e21' }}>Connect DeskFlow AI to Facebook</h4>
+                  <h4 style={{ fontWeight: '700', fontSize: '1.1rem', color: '#1c1e21' }}>Connect FrontDesk AI to Facebook</h4>
                   <p style={{ fontSize: '0.8rem', color: '#606770', lineHeight: '1.4' }}>
-                    Signing in lets DeskFlow AI view your WhatsApp Business details and configure automation scripts automatically.
+                    Signing in lets FrontDesk AI view your WhatsApp Business details and configure automation scripts automatically.
                   </p>
                   
                   <div style={{ background: 'white', border: '1px solid #dadce0', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '340px', margin: '8px auto', textAlign: 'left' }}>
@@ -2916,7 +2916,7 @@ export default function App() {
         <div>
           <div className="logo-container">
             <div className="logo-icon">D</div>
-            <span className="logo-text">DeskFlow AI</span>
+            <span className="logo-text">FrontDesk AI</span>
           </div>
 
           {/* User Profile Block with Real Google Avatar */}
@@ -3106,7 +3106,7 @@ export default function App() {
               <span>{currentConfig.logo}</span>
               <span>{currentConfig.businessName}</span>
             </h2>
-            <p>Front Desk Dashboard powered by DeskFlow AI</p>
+            <p>Front Desk Dashboard powered by FrontDesk AI</p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -3266,7 +3266,7 @@ export default function App() {
               <div>
                 <h4 style={{ fontSize: '1.1rem', marginBottom: '4px', fontWeight: 'bold' }}>Viral Referrals Loop Active</h4>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                  DeskFlow AI automatically appends discount coupons (e.g. 10% Off or ₹500 Coupon) to confirmed appointment tickets. Give business owners and customers referral links to easily drive local acquisition.
+                  FrontDesk AI automatically appends discount coupons (e.g. 10% Off or ₹500 Coupon) to confirmed appointment tickets. Give business owners and customers referral links to easily drive local acquisition.
                 </p>
               </div>
               <button 
@@ -3580,7 +3580,7 @@ export default function App() {
                 Real-time Calendar Conflict Check Enabled
               </h4>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                The DeskFlow system flags potential booking time collisions on the scheduler feed. Double bookings trigger an alert card so front desk managers can adjust times manually before sending notifications.
+                The FrontDesk system flags potential booking time collisions on the scheduler feed. Double bookings trigger an alert card so front desk managers can adjust times manually before sending notifications.
               </p>
             </div>
 
@@ -3803,7 +3803,7 @@ export default function App() {
                         <CheckCircle2 size={16} /> Fully Connected to WhatsApp API!
                       </p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                        Your Meta Business profile and phone number are connected. Incoming client queries on your registered number will now automatically be processed by DeskFlow AI.
+                        Your Meta Business profile and phone number are connected. Incoming client queries on your registered number will now automatically be processed by FrontDesk AI.
                       </p>
                       
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)', borderTop: '1px solid #dadce0', paddingTop: '10px', marginTop: '4px' }}>
@@ -3900,16 +3900,16 @@ export default function App() {
                     <div style={{ fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Callback URL:</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #dadce0', padding: '6px 10px', borderRadius: '8px', marginTop: '4px' }}>
-                        <code style={{ flexGrow: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>https://api.deskflow.com/v1/webhooks/{activeNiche}</code>
-                        <button onClick={() => { navigator.clipboard.writeText(`https://api.deskflow.com/v1/webhooks/${activeNiche}`); triggerToast("URL Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
+                        <code style={{ flexGrow: 1, textOverflow: 'ellipsis', overflow: 'hidden' }}>https://api.frontdesk.com/v1/webhooks/{activeNiche}</code>
+                        <button onClick={() => { navigator.clipboard.writeText(`https://api.frontdesk.com/v1/webhooks/${activeNiche}`); triggerToast("URL Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
                       </div>
                     </div>
 
                     <div style={{ fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Verify Token:</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #dadce0', padding: '6px 10px', borderRadius: '8px', marginTop: '4px' }}>
-                        <code style={{ flexGrow: 1 }}>deskflow_verify_token_secure_99</code>
-                        <button onClick={() => { navigator.clipboard.writeText("deskflow_verify_token_secure_99"); triggerToast("Verify Token Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
+                        <code style={{ flexGrow: 1 }}>frontdesk_verify_token_secure_99</code>
+                        <button onClick={() => { navigator.clipboard.writeText("frontdesk_verify_token_secure_99"); triggerToast("Verify Token Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
                       </div>
                     </div>
                   </div>
@@ -4161,12 +4161,12 @@ export default function App() {
                   };
 
                   setUser(updatedUser);
-                  localStorage.setItem('deskflow_user', JSON.stringify(updatedUser));
+                  localStorage.setItem('frontdesk_user', JSON.stringify(updatedUser));
 
                   // Save in profiles library
-                  const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+                  const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
                   const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-                  localStorage.setItem('deskflow_user_profiles', JSON.stringify({
+                  localStorage.setItem('frontdesk_user_profiles', JSON.stringify({
                     ...profiles,
                     [user.email.toLowerCase()]: updatedUser
                   }));
@@ -4188,7 +4188,7 @@ Your main tasks are:
                       }
                     };
                     setNicheConfigs(updatedConfigs);
-                    localStorage.setItem('deskflow_configs', JSON.stringify(updatedConfigs));
+                    localStorage.setItem('frontdesk_configs', JSON.stringify(updatedConfigs));
                   }
 
                   triggerToast("Profile and business details updated!", "green");

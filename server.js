@@ -27,7 +27,7 @@ app.use(express.static(path.join(process.cwd(), 'dist')));
 const PORT = process.env.PORT || 3000;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'deskflow_verify_token_secure_99';
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'frontdesk_verify_token_secure_99';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 
@@ -140,7 +140,7 @@ async function checkAuth(req, res, next) {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,
-      email: decodedToken.email || `${decodedToken.uid}@deskflow.com`
+      email: decodedToken.email || `${decodedToken.uid}@frontdesk.com`
     };
     next();
   } catch (error) {
@@ -228,7 +228,7 @@ app.get('/privacy', (req, res) => {
   res.send(`
     <html>
       <head>
-        <title>DeskFlow AI Privacy Policy</title>
+        <title>FrontDesk AI Privacy Policy</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
           h1 { border-bottom: 1px solid #eee; padding-bottom: 10px; color: #111; }
@@ -237,7 +237,7 @@ app.get('/privacy', (req, res) => {
       <body>
         <h1>Privacy Policy</h1>
         <p><strong>Last Updated: May 31, 2026</strong></p>
-        <p>DeskFlow AI (referred to as "we", "us", or "our") values your privacy. This Privacy Policy details how we collect, store, and manage your WhatsApp Business credentials and customer communication logs.</p>
+        <p>FrontDesk AI (referred to as "we", "us", or "our") values your privacy. This Privacy Policy details how we collect, store, and manage your WhatsApp Business credentials and customer communication logs.</p>
         <h2>1. Information We Collect</h2>
         <p>When you connect your WhatsApp account via Meta's Embedded Signup, we retrieve user access tokens and phone number identifiers to authenticate your webhook calls.</p>
         <h2>2. Data Processing and Storage</h2>
@@ -289,11 +289,11 @@ app.post('/v1/webhooks', async (req, res) => {
         // Route webhook to the corresponding user profile by matching phone ID
         const profile = await getProfileByPhoneId(phoneId);
         const activeProfile = profile || {
-          businessName: 'DeskFlow Client',
+          businessName: 'FrontDesk Client',
           niche: 'dental',
           businessAddress: '100 Feet Road, Indiranagar, Bangalore',
           businessPhone: '+91 99000 88000',
-          businessWebsite: 'https://www.deskflowai.com',
+          businessWebsite: 'https://www.frontdeskai.com',
           aiPersona: 'Friendly',
           email: 'kartikparashar15@gmail.com'
         };
@@ -434,7 +434,7 @@ app.post('/v1/users', checkAuth, async (req, res) => {
  */
 app.get('/v1/users', checkAuth, async (req, res) => {
   try {
-    if (req.user.email.toLowerCase() !== 'admin@deskflow.com') {
+    if (req.user.email.toLowerCase() !== 'admin@frontdesk.com') {
       return res.status(403).json({ success: false, error: 'Access denied: Administrators only.' });
     }
     if (!db) {
@@ -714,11 +714,11 @@ app.post('/v1/test-agent-reply', checkAuth, async (req, res) => {
     // Fetch profile
     const profile = await getProfileByEmail(emailKey);
     const activeProfile = profile || {
-      businessName: 'DeskFlow Client',
+      businessName: 'FrontDesk Client',
       niche: 'dental',
       businessAddress: '100 Feet Road, Indiranagar, Bangalore',
       businessPhone: '+91 99000 88000',
-      businessWebsite: 'https://www.deskflowai.com',
+      businessWebsite: 'https://www.frontdeskai.com',
       aiPersona: 'Friendly',
       email: emailKey
     };
@@ -979,7 +979,7 @@ app.get('*all', (req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🚀 DeskFlow Express Webhook server running on port ${PORT}`);
+  console.log(`🚀 FrontDesk Express Webhook server running on port ${PORT}`);
   console.log(`🔗 Webhook Callback URL endpoint: http://localhost:${PORT}/v1/webhooks`);
   console.log(`🔑 Verification Token: ${VERIFY_TOKEN}`);
   console.log(`======================================================\n`);
