@@ -100,7 +100,9 @@ async function initSQLite() {
         phone_number_id TEXT,
         whatsapp_config TEXT,
         trial_start TEXT DEFAULT NULL,
-        subscription_plan TEXT DEFAULT NULL
+        subscription_plan TEXT DEFAULT NULL,
+        google_api_key TEXT DEFAULT NULL,
+        google_place_id TEXT DEFAULT NULL
       );
       
       CREATE TABLE IF NOT EXISTS referrals (
@@ -133,6 +135,12 @@ async function initSQLite() {
     } catch (err) {}
     try {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN subscription_plan TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN google_api_key TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN google_place_id TEXT DEFAULT NULL`);
     } catch (err) {}
     
     console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews) initialized successfully!');
@@ -199,6 +207,8 @@ async function getProfileByEmail(email) {
       row.aiPersona = row.ai_persona;
       row.trialStart = row.trial_start;
       row.subscriptionPlan = row.subscription_plan;
+      row.googleApiKey = row.google_api_key;
+      row.googlePlaceId = row.google_place_id;
     }
     return row || null;
   } catch (error) {
@@ -365,14 +375,17 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       trial_start = (existing && existing.trialStart) ? existing.trialStart : new Date().toISOString();
     }
     const subscription_plan = profileData.subscriptionPlan || null;
+    const google_api_key = profileData.googleApiKey || null;
+    const google_place_id = profileData.googlePlaceId || null;
 
     await db.run(`
       INSERT INTO business_profiles (
         email, name, avatar, avatar_img, role, niche, is_onboarded, is_subscribed, 
         business_name, business_phone, business_address, business_website, 
-        ai_persona, phone_number_id, whatsapp_config, trial_start, subscription_plan
+        ai_persona, phone_number_id, whatsapp_config, trial_start, subscription_plan,
+        google_api_key, google_place_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         avatar = excluded.avatar,
@@ -389,7 +402,9 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
         phone_number_id = excluded.phone_number_id,
         whatsapp_config = excluded.whatsapp_config,
         trial_start = excluded.trial_start,
-        subscription_plan = excluded.subscription_plan
+        subscription_plan = excluded.subscription_plan,
+        google_api_key = excluded.google_api_key,
+        google_place_id = excluded.google_place_id
     `,
       emailKey,
       profileData.name || '',
@@ -407,7 +422,9 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       profileData.phoneNumberId || '',
       whatsappConfigStr,
       trial_start,
-      subscription_plan
+      subscription_plan,
+      google_api_key,
+      google_place_id
     );
 
     console.log(`Successfully synced business profile for email ${emailKey}`);
@@ -515,6 +532,95 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
     return res.status(200).json(profile || { email: emailKey, isNew: true });
   } catch (error) {
     console.error('Error fetching business profile:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 3f. GET live Google Reviews using user's configured Places API Key and Place ID
+ */
+app.get('/v1/google-reviews', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const profile = await getProfileByEmail(emailKey);
+    
+    if (!profile) {
+      return res.status(404).json({ success: false, error: 'Business profile not found.' });
+    }
+
+    const apiKey = profile.googleApiKey || process.env.GOOGLE_PLACES_API_KEY;
+    const placeId = profile.googlePlaceId;
+
+    if (!placeId) {
+      // Return beautiful mock fallback reviews and rating so client dashboards don't break
+      return res.status(200).json({
+        success: true,
+        isMock: true,
+        businessName: profile.businessName || 'FrontDesk Business',
+        rating: 4.8,
+        totalReviews: 128,
+        reviews: [
+          {
+            author_name: "Amit Malhotra",
+            rating: 5,
+            text: "Excellent service! Connecting WhatsApp automation made booking my slot so easy.",
+            time: Math.floor(Date.now() / 1000) - 86400
+          },
+          {
+            author_name: "Sneha Sen",
+            rating: 4,
+            text: "Prompt scheduling and nice experience at the store. The AI chatbot answered instantly.",
+            time: Math.floor(Date.now() / 1000) - 172800
+          },
+          {
+            author_name: "Rohan Verma",
+            rating: 5,
+            text: "Very professional and clean. Automated reminders helped me reach on time.",
+            time: Math.floor(Date.now() / 1000) - 259200
+          }
+        ]
+      });
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Google Places API Key is not configured for this business profile.' 
+      });
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,reviews,user_ratings_total&key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.result) {
+      const result = data.result;
+      
+      // Map standard Google structure to our output format
+      const formattedReviews = (result.reviews || []).map(r => ({
+        author_name: r.author_name,
+        rating: r.rating,
+        text: r.text,
+        time: r.time
+      }));
+
+      return res.status(200).json({
+        success: true,
+        isMock: false,
+        businessName: result.name,
+        rating: result.rating || 0,
+        totalReviews: result.user_ratings_total || 0,
+        reviews: formattedReviews
+      });
+    } else {
+      console.warn('[Google Places API Error]', data.error_message || data.status);
+      return res.status(400).json({ 
+        success: false, 
+        error: data.error_message || `Google Places API returned status: ${data.status}` 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching Google Reviews:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

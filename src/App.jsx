@@ -480,6 +480,8 @@ export default function App() {
     return local ? JSON.parse(local) : [];
   });
 
+  const [googleStats, setGoogleStats] = useState({ rating: 4.8, totalReviews: 128, reviews: [], isMock: true });
+
   const [nicheConfigs, setNicheConfigs] = useState(() => {
     const local = localStorage.getItem('frontdesk_configs');
     return local ? JSON.parse(local) : NICHE_CONFIGS;
@@ -723,6 +725,9 @@ export default function App() {
 
       const localWaConfig = localStorage.getItem(`frontdesk_wa_config_${emailKey}`);
       setWhatsappConfig(localWaConfig ? JSON.parse(localWaConfig) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+      
+      // Fetch live Google reviews
+      fetchGoogleReviews(user);
     } else {
       // Clear/Reset to default states when logged out
       setLeads([]);
@@ -731,6 +736,7 @@ export default function App() {
       setReviews([]);
       setNicheConfigs(NICHE_CONFIGS);
       setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+      setGoogleStats({ rating: 4.8, totalReviews: 128, reviews: [], isMock: true });
     }
   }, [user]);
 
@@ -891,6 +897,33 @@ export default function App() {
     } catch (err) {
       console.error("authenticatedFetch error:", err);
       return fetch(url, options);
+    }
+  };
+
+  // Fetch Google Reviews from backend Places Proxy
+  const fetchGoogleReviews = async (currentUser) => {
+    if (!currentUser || !currentUser.email) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/google-reviews`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${currentUser.email}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setGoogleStats({
+            rating: data.rating,
+            totalReviews: data.totalReviews,
+            reviews: data.reviews,
+            isMock: data.isMock
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching Google reviews:", error);
     }
   };
 
@@ -3434,14 +3467,21 @@ export default function App() {
                     <Star size={18} />
                   </div>
                 </div>
-                <div className="kpi-value">{averageReviewScore.toFixed(1)} / 5.0</div>
+                <div className="kpi-value">
+                  {googleStats.rating.toFixed(1)} / 5.0
+                  {!googleStats.isMock && (
+                    <span style={{ fontSize: '0.65rem', verticalAlign: 'middle', marginLeft: '6px', padding: '2px 6px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--accent-green)', borderRadius: '4px', fontWeight: 'bold' }}>
+                      LIVE
+                    </span>
+                  )}
+                </div>
                 <div className="kpi-footer">
                   <span style={{ color: 'var(--accent-yellow)', display: 'flex', gap: '2px' }}>
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} size={12} fill={i < Math.round(averageReviewScore) ? 'var(--accent-yellow)' : 'transparent'} />
+                      <Star key={i} size={12} fill={i < Math.round(googleStats.rating) ? 'var(--accent-yellow)' : 'transparent'} />
                     ))}
                   </span>
-                  <span>({reviews.filter(r => r.niche === activeNiche && r.status === 'completed').length} reviews)</span>
+                  <span>({googleStats.totalReviews} Google reviews)</span>
                 </div>
               </div>
             </div>
@@ -4269,34 +4309,45 @@ export default function App() {
 
               {/* Reviews */}
               <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                <div className="panel-header">
+                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Star size={18} style={{ color: 'var(--accent-yellow)' }} />
-                    Google Review Request Loops
+                    Live Google Reviews
                   </h3>
-                  <span className="badge badge-new">{reviews.filter(r => r.niche === activeNiche && r.status === 'completed').length} Received</span>
+                  <span className="badge badge-converted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {!googleStats.isMock && <span className="pulse-dot" style={{ width: '6px', height: '6px', backgroundColor: 'var(--accent-green)' }}></span>}
+                    {googleStats.isMock ? 'Demo Mode' : 'Live Sync'}
+                  </span>
                 </div>
                 <div className="panel-body">
-                  <div className="activity-list" style={{ maxHeight: '380px' }}>
-                    {reviews.filter(r => r.niche === activeNiche).map(rev => (
-                      <div key={rev.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                        <div style={{ display: 'flex', justify: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{rev.customerName}</span>
-                          <span className={`badge ${rev.status === 'completed' ? 'badge-converted' : 'badge-new'}`} style={{ fontSize: '0.65rem' }}>
-                            {rev.status === 'completed' ? 'Submitted' : 'Link Sent'}
+                  <div className="activity-list" style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                    {googleStats.reviews && googleStats.reviews.length > 0 ? (
+                      googleStats.reviews.map((rev, index) => (
+                        <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{rev.author_name}</span>
+                            <span className="badge badge-converted" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(66, 133, 244, 0.1)', color: '#4285f4' }}>
+                              Google Review
+                            </span>
+                          </div>
+                          {rev.rating > 0 && (
+                            <div className="star-rating">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} size={12} fill={i < rev.rating ? 'var(--accent-yellow)' : 'transparent'} style={{ color: 'var(--accent-yellow)' }} />
+                              ))}
+                            </div>
+                          )}
+                          {rev.text && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>"{rev.text}"</p>}
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Review Date: {new Date(rev.time * 1000).toLocaleDateString()}
                           </span>
                         </div>
-                        {rev.rating > 0 && (
-                          <div className="star-rating">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} size={12} fill={i < rev.rating ? 'var(--accent-yellow)' : 'transparent'} />
-                            ))}
-                          </div>
-                        )}
-                        {rev.comment && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', italic: 'true' }}>"{rev.comment}"</p>}
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Request Date: {new Date(rev.sentDate).toLocaleDateString()}</span>
+                      ))
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No Google reviews synced yet. Complete setup in profile to pull live reviews.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -4820,6 +4871,8 @@ export default function App() {
                   const updatedPhone = form.businessPhone.value;
                   const updatedAddress = form.businessAddress.value;
                   const updatedTone = form.aiPersona.value;
+                  const updatedGoogleApiKey = form.googleApiKey.value;
+                  const updatedGooglePlaceId = form.googlePlaceId.value;
 
                   const updatedUser = {
                     ...user,
@@ -4828,7 +4881,9 @@ export default function App() {
                     businessWebsite: updatedWebsite,
                     businessPhone: updatedPhone,
                     businessAddress: updatedAddress,
-                    aiPersona: updatedTone
+                    aiPersona: updatedTone,
+                    googleApiKey: updatedGoogleApiKey,
+                    googlePlaceId: updatedGooglePlaceId
                   };
 
                   setUser(updatedUser);
@@ -4864,6 +4919,9 @@ Your main tasks are:
 
                   triggerToast("Profile and business details updated!", "green");
                   addActivity(`Updated business coordinates for ${updatedBusinessName}`, "success");
+                  
+                  // Fetch updated Google reviews immediately
+                  fetchGoogleReviews(updatedUser);
 
                    // Sync updated profile details to backend Express server
                   authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
@@ -4949,6 +5007,38 @@ Your main tasks are:
                       defaultValue={user.businessAddress || '100 Feet Road, Indiranagar, Bangalore'} 
                       required 
                     />
+                  </div>
+
+                  <div style={{ marginTop: '20px', borderTop: '1px dashed var(--border-light)', paddingTop: '16px', marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Star size={14} style={{ color: 'var(--accent-yellow)' }} />
+                      Google Place Live Reviews Setup
+                    </h4>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="form-group">
+                        <label>Google Places API Key</label>
+                        <input 
+                          type="password" 
+                          name="googleApiKey" 
+                          defaultValue={user.googleApiKey || ''} 
+                          placeholder="e.g. AIzaSy..." 
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Google Place ID</label>
+                        <input 
+                          type="text" 
+                          name="googlePlaceId" 
+                          defaultValue={user.googlePlaceId || ''} 
+                          placeholder="e.g. ChIJN1t_t..." 
+                        />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      If Place ID is left blank, the system will fall back to beautiful simulated mock reviews.
+                    </p>
                   </div>
 
                   <div className="form-group">
