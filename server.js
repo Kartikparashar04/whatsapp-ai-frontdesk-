@@ -992,7 +992,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
 }
 
 // Catch-all route to serve the React index.html for client-side routing (Single Page App)
-app.get('*', (req, res, next) => {
+app.get('*all', (req, res, next) => {
   // If the request starts with /v1/ or is for Meta privacy policy, let it pass through to the routing handlers
   if (req.path.startsWith('/v1/') || req.path === '/privacy') {
     return next();
