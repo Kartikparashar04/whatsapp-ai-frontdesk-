@@ -461,22 +461,22 @@ export default function App() {
   // App States
   const [leads, setLeads] = useState(() => {
     const local = localStorage.getItem('deskflow_leads');
-    return local ? JSON.parse(local) : INITIAL_LEADS;
+    return local ? JSON.parse(local) : [];
   });
   
   const [appointments, setAppointments] = useState(() => {
     const local = localStorage.getItem('deskflow_appts');
-    return local ? JSON.parse(local) : INITIAL_APPOINTMENTS;
+    return local ? JSON.parse(local) : [];
   });
   
   const [referrals, setReferrals] = useState(() => {
     const local = localStorage.getItem('deskflow_referrals');
-    return local ? JSON.parse(local) : INITIAL_REFERRALS;
+    return local ? JSON.parse(local) : [];
   });
   
   const [reviews, setReviews] = useState(() => {
     const local = localStorage.getItem('deskflow_reviews');
-    return local ? JSON.parse(local) : INITIAL_REVIEWS;
+    return local ? JSON.parse(local) : [];
   });
 
   const [nicheConfigs, setNicheConfigs] = useState(() => {
@@ -706,16 +706,16 @@ export default function App() {
       const emailKey = user.email.toLowerCase();
       
       const localLeads = localStorage.getItem(`deskflow_leads_${emailKey}`);
-      setLeads(localLeads ? JSON.parse(localLeads) : INITIAL_LEADS);
+      setLeads(localLeads ? JSON.parse(localLeads) : []);
 
       const localAppts = localStorage.getItem(`deskflow_appts_${emailKey}`);
-      setAppointments(localAppts ? JSON.parse(localAppts) : INITIAL_APPOINTMENTS);
+      setAppointments(localAppts ? JSON.parse(localAppts) : []);
 
       const localReferrals = localStorage.getItem(`deskflow_referrals_${emailKey}`);
-      setReferrals(localReferrals ? JSON.parse(localReferrals) : INITIAL_REFERRALS);
+      setReferrals(localReferrals ? JSON.parse(localReferrals) : []);
 
       const localReviews = localStorage.getItem(`deskflow_reviews_${emailKey}`);
-      setReviews(localReviews ? JSON.parse(localReviews) : INITIAL_REVIEWS);
+      setReviews(localReviews ? JSON.parse(localReviews) : []);
 
       const localConfigs = localStorage.getItem(`deskflow_configs_${emailKey}`);
       setNicheConfigs(localConfigs ? JSON.parse(localConfigs) : NICHE_CONFIGS);
@@ -724,10 +724,10 @@ export default function App() {
       setWhatsappConfig(localWaConfig ? JSON.parse(localWaConfig) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
     } else {
       // Clear/Reset to default states when logged out
-      setLeads(INITIAL_LEADS);
-      setAppointments(INITIAL_APPOINTMENTS);
-      setReferrals(INITIAL_REFERRALS);
-      setReviews(INITIAL_REVIEWS);
+      setLeads([]);
+      setAppointments([]);
+      setReferrals([]);
+      setReviews([]);
       setNicheConfigs(NICHE_CONFIGS);
       setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
     }
