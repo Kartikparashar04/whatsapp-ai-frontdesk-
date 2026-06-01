@@ -996,6 +996,48 @@ export default function App() {
         throw new Error(orderData.error || "Order creation returned success=false.");
       }
       
+      // If we are in mock mode (using dummy keys), simulate a successful transaction dialog
+      if (orderData.isMock) {
+        triggerToast("Demo Mode: Simulating checkout payment gateway...", "blue");
+        setTimeout(async () => {
+          try {
+            triggerToast("Simulated payment successful! Verifying with database...", "blue");
+            const verifyResponse = await authenticatedFetch(`${BACKEND_URL}/v1/payments/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: orderData.orderId,
+                razorpay_payment_id: `pay_mock_${Date.now()}`,
+                razorpay_signature: 'dummy_signature_verified'
+              })
+            });
+            
+            if (!verifyResponse.ok) {
+              throw new Error("Simulated verification failed.");
+            }
+            
+            const verifyData = await verifyResponse.json();
+            if (verifyData.success) {
+              triggerToast("Subscription activated successfully (Demo Mode)!", "green");
+              // Re-fetch user profile to update state
+              if (auth.currentUser) {
+                resolveUserProfileAndSetSession(auth.currentUser);
+              } else {
+                resolveUserProfileAndSetSession(user);
+              }
+            } else {
+              triggerToast("Verification failed: " + verifyData.error, "red");
+            }
+          } catch (err) {
+            console.error("Mock payment verification error:", err);
+            triggerToast("Verification failed: " + err.message, "red");
+          } finally {
+            setIsPaymentLoading(false);
+          }
+        }, 1800);
+        return;
+      }
+      
       // Ensure Razorpay SDK is loaded
       if (typeof window.Razorpay === 'undefined') {
         // Fallback: Dynamically append Razorpay checkout script if not available

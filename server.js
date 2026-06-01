@@ -412,6 +412,20 @@ app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Amount is required' });
     }
 
+    const isDummyKey = !process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID.includes('dummy');
+
+    if (isDummyKey) {
+      console.log('[Razorpay API] Using dummy key, returning simulated order response.');
+      return res.status(200).json({
+        success: true,
+        orderId: `order_mock_${Date.now()}`,
+        amount: Math.round(amount * 100),
+        currency: currency || 'INR',
+        key: 'rzp_test_dummy_key_id_123456',
+        isMock: true
+      });
+    }
+
     const options = {
       amount: Math.round(amount * 100), // amount in paisa
       currency: currency || 'INR',
