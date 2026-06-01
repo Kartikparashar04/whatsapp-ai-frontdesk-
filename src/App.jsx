@@ -438,6 +438,7 @@ export default function App() {
     const local = localStorage.getItem('frontdesk_user');
     return local ? JSON.parse(local) : null;
   });
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   
   const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login, forgot_password
   const [authMethod, setAuthMethod] = useState('phone'); // phone, email
@@ -965,6 +966,115 @@ export default function App() {
     // Fallback: If not on backend and we didn't find local profile, sync initial user to backend
     if (!existingProfile) {
       syncUserToBackend(authUser);
+    }
+  };
+
+  // Payments: Trigger Razorpay Checkout for Starter Plan Subscription (₹999/mo)
+  const handlePayment = async () => {
+    if (!user) {
+      triggerToast("You must be logged in to activate a plan.", "red");
+      return;
+    }
+    
+    setIsPaymentLoading(true);
+    try {
+      const response = await authenticatedFetch(`${BACKEND_URL}/v1/payments/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: 999,
+          currency: 'INR'
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to create order on the server.");
+      }
+      
+      const orderData = await response.json();
+      if (!orderData.success) {
+        throw new Error(orderData.error || "Order creation returned success=false.");
+      }
+      
+      // Ensure Razorpay SDK is loaded
+      if (typeof window.Razorpay === 'undefined') {
+        // Fallback: Dynamically append Razorpay checkout script if not available
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+      
+      const options = {
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "FrontDesk AI",
+        description: "SaaS Starter Plan Subscription",
+        image: user.avatarImg || "https://app.frontdeskai.shop/logo.png",
+        order_id: orderData.orderId,
+        handler: async function (paymentResponse) {
+          try {
+            triggerToast("Payment successful! Verifying signature...", "blue");
+            const verifyResponse = await authenticatedFetch(`${BACKEND_URL}/v1/payments/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature
+              })
+            });
+            
+            if (!verifyResponse.ok) {
+              throw new Error("Payment signature verification failed.");
+            }
+            
+            const verifyData = await verifyResponse.json();
+            if (verifyData.success) {
+              triggerToast("Subscription activated successfully!", "green");
+              // Re-fetch user profile to update state from SQLite database
+              if (auth.currentUser) {
+                resolveUserProfileAndSetSession(auth.currentUser);
+              } else {
+                resolveUserProfileAndSetSession(user);
+              }
+            } else {
+              triggerToast(verifyData.error || "Payment signature verification failed.", "red");
+            }
+          } catch (err) {
+            console.error("Error verifying payment signature:", err);
+            triggerToast("Verification failed: " + err.message, "red");
+          }
+        },
+        prefill: {
+          name: user.name,
+          email: user.email,
+          contact: user.businessPhone || ""
+        },
+        notes: {
+          email: user.email,
+          businessName: user.businessName || ""
+        },
+        theme: {
+          color: "#0070f3"
+        }
+      };
+      
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (paymentFailResponse) {
+        console.error("Razorpay Payment Failed:", paymentFailResponse.error);
+        triggerToast("Payment failed: " + paymentFailResponse.error.description, "red");
+      });
+      rzp.open();
+    } catch (err) {
+      console.error("handlePayment error:", err);
+      triggerToast("Error processing payment: " + err.message, "red");
+    } finally {
+      setIsPaymentLoading(false);
     }
   };
 
@@ -4102,12 +4212,120 @@ export default function App() {
                 </div>
 
                 <div className="profile-usage-section">
-                  <div className="usage-meter-group">
-                    <div className="usage-meter-header">
-                      <span>Monthly Subscription</span>
-                      <span style={{ color: 'var(--accent-blue)', fontWeight: '600' }}>Starter Plan</span>
+                  {/* Monthly Subscription Card */}
+                  <div className="glass-panel" style={{
+                    background: user.isSubscribed 
+                      ? 'linear-gradient(135deg, rgba(30, 142, 62, 0.08) 0%, rgba(20, 20, 20, 0.02) 100%)' 
+                      : 'linear-gradient(135deg, rgba(242, 153, 74, 0.08) 0%, rgba(20, 20, 20, 0.02) 100%)',
+                    border: user.isSubscribed ? '1px solid rgba(30, 142, 62, 0.25)' : '1px solid rgba(242, 153, 74, 0.25)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    boxShadow: '0 4px 20px 0 rgba(0, 0, 0, 0.03)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Subscription
+                      </span>
+                      {user.isSubscribed ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          color: '#1e8e3e',
+                          backgroundColor: 'rgba(30, 142, 62, 0.12)',
+                          border: '1px solid rgba(30, 142, 62, 0.15)'
+                        }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#1e8e3e', display: 'inline-block' }}></span>
+                          Active
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          color: '#d93025',
+                          backgroundColor: 'rgba(217, 48, 37, 0.12)',
+                          border: '1px solid rgba(217, 48, 37, 0.15)'
+                        }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#d93025', display: 'inline-block' }}></span>
+                          Inactive
+                        </span>
+                      )}
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Next Billing: June 30, 2026 (₹999/mo)</p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10px' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>
+                          Starter Plan
+                        </h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {user.isSubscribed 
+                            ? `Next Billing: July 2, 2026 (₹999/mo)` 
+                            : 'Access WhatsApp AI Engine (₹999/mo)'}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        {user.isSubscribed ? (
+                          <button 
+                            onClick={handlePayment}
+                            disabled={isPaymentLoading}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              background: 'var(--bg-card)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'var(--hover-bg)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card)'; }}
+                          >
+                            {isPaymentLoading ? '...' : 'Extend Plan'}
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={handlePayment}
+                            disabled={isPaymentLoading}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: 'linear-gradient(135deg, #0070f3 0%, #00dfd8 100%)',
+                              color: '#fff',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              boxShadow: '0 4px 10px 0 rgba(0, 118, 255, 0.25)',
+                              transition: 'all 0.2s',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.boxShadow = '0 6px 14px 0 rgba(0, 118, 255, 0.35)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.boxShadow = '0 4px 10px 0 rgba(0, 118, 255, 0.25)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          >
+                            <Sparkles size={12} />
+                            {isPaymentLoading ? '...' : 'Pay ₹999'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="usage-meter-group">

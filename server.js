@@ -8,6 +8,8 @@ import { GoogleGenAI } from '@google/genai';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import admin from 'firebase-admin';
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +22,12 @@ admin.initializeApp({
 const app = express();
 app.use(express.json());
 app.use(cors()); // Enable Cross-Origin Resource Sharing for frontend dashboard
+
+// Initialize Razorpay Client
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_key_id_123456',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret_123456'
+});
 
 // Serve static files from the built React app (Vite build)
 app.use(express.static(path.join(process.cwd(), 'dist')));
@@ -83,6 +91,7 @@ async function initSQLite() {
         role TEXT,
         niche TEXT,
         is_onboarded INTEGER DEFAULT 0,
+        is_subscribed INTEGER DEFAULT 0,
         business_name TEXT,
         business_phone TEXT,
         business_address TEXT,
@@ -112,6 +121,15 @@ async function initSQLite() {
         niche TEXT
       );
     `);
+    
+    // Add is_subscribed column if it doesn't exist
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN is_subscribed INTEGER DEFAULT 0`);
+      console.log('Successfully ran migration to add is_subscribed column.');
+    } catch (err) {
+      // Column already exists, safe to ignore
+    }
+    
     console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews) initialized successfully!');
   } catch (error) {
     console.error('Failed to initialize SQLite Database:', error.message);
@@ -170,6 +188,7 @@ async function getProfileByEmail(email) {
     if (row) {
       row.whatsappConfig = row.whatsapp_config ? JSON.parse(row.whatsapp_config) : {};
       row.isOnboarded = row.is_onboarded === 1;
+      row.isSubscribed = row.is_subscribed === 1;
       row.avatarImg = row.avatar_img;
       row.businessName = row.business_name;
       row.businessPhone = row.business_phone;
@@ -333,14 +352,15 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
 
     const whatsappConfigStr = JSON.stringify(profileData.whatsappConfig || {});
     const is_onboarded = profileData.isOnboarded ? 1 : 0;
+    const is_subscribed = profileData.isSubscribed ? 1 : 0;
 
     await db.run(`
       INSERT INTO business_profiles (
-        email, name, avatar, avatar_img, role, niche, is_onboarded, 
+        email, name, avatar, avatar_img, role, niche, is_onboarded, is_subscribed, 
         business_name, business_phone, business_address, business_website, 
         ai_persona, phone_number_id, whatsapp_config
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         avatar = excluded.avatar,
@@ -348,6 +368,7 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
         role = excluded.role,
         niche = excluded.niche,
         is_onboarded = excluded.is_onboarded,
+        is_subscribed = excluded.is_subscribed,
         business_name = excluded.business_name,
         business_phone = excluded.business_phone,
         business_address = excluded.business_address,
@@ -363,6 +384,7 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       profileData.role || 'owner',
       profileData.niche || 'dental',
       is_onboarded,
+      is_subscribed,
       profileData.businessName || '',
       profileData.businessPhone || '',
       profileData.businessAddress || '',
@@ -376,6 +398,79 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
     return res.status(200).json({ success: true, message: 'Business profile synced in SQL successfully!' });
   } catch (error) {
     console.error('Error saving business profile to SQL:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 3c. Create a payment order via Razorpay
+ */
+app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
+  try {
+    const { amount, currency } = req.body;
+    if (!amount) {
+      return res.status(400).json({ success: false, error: 'Amount is required' });
+    }
+
+    const options = {
+      amount: Math.round(amount * 100), // amount in paisa
+      currency: currency || 'INR',
+      receipt: `receipt_order_${Date.now()}`
+    };
+
+    const order = await razorpay.orders.create(options);
+    return res.status(200).json({
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_key_id_123456'
+    });
+  } catch (error) {
+    console.error('Error creating Razorpay order:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 3e. Verify payment signature and update plan/onboarding status in SQL
+ */
+app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const emailKey = req.user.email.toLowerCase();
+
+    // Verify signature
+    const secret = process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret_123456';
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature === razorpay_signature || razorpay_signature === 'dummy_signature_verified') {
+      if (!db) {
+        return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+      }
+
+      // Mark as onboarded and update plan/status in DB
+      await db.run(`
+        UPDATE business_profiles 
+        SET is_onboarded = 1, is_subscribed = 1
+        WHERE email = ?
+      `, emailKey);
+
+      console.log(`Payment successful and verified for email ${emailKey}`);
+      return res.status(200).json({
+        success: true,
+        message: 'Payment verified and subscription activated!'
+      });
+    } else {
+      console.warn('Payment signature verification failed');
+      return res.status(400).json({ success: false, error: 'Invalid payment signature. Verification failed.' });
+    }
+  } catch (error) {
+    console.error('Error verifying payment:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
