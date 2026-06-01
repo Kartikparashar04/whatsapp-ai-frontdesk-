@@ -247,29 +247,6 @@ app.get('/privacy', (req, res) => {
   `);
 });
 
-app.get('/v1/debug-dist', async (req, res) => {
-  try {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const cwd = process.cwd();
-    const distExists = await fs.access(path.join(cwd, 'dist')).then(() => true).catch(() => false);
-    let files = [];
-    if (distExists) {
-      files = await fs.readdir(path.join(cwd, 'dist'));
-    }
-    const rootFiles = await fs.readdir(cwd);
-    res.json({
-      success: true,
-      cwd,
-      distExists,
-      files,
-      rootFiles
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 /**
  * 1. Webhook Verification (Required by Meta when you save callback URL)
  */
