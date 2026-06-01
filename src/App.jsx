@@ -582,35 +582,21 @@ export default function App() {
       const payload = JSON.parse(jsonPayload);
       const email = payload.email;
 
-      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-      let existingProfile = profiles[email.toLowerCase()];
-
-      if (existingProfile) {
-        setUser(existingProfile);
-        syncUserToBackend(existingProfile);
-        triggerToast(`Welcome back, ${existingProfile.name}!`, 'green');
-      } else {
-        // Setup owner object using real Google account payload!
-        const googleUser = {
-          name: payload.name,
-          email: payload.email,
-          avatar: payload.name.substring(0, 1).toUpperCase(),
-          avatarImg: payload.picture, // Google profile avatar url
-          role: 'owner',
-          niche: 'dental', // Default category
-          isOnboarded: false, // Must onboard!
-          businessName: '',
-          businessPhone: '',
-          businessAddress: '',
-          businessWebsite: '',
-          aiPersona: 'Friendly'
-        };
-        setUser(googleUser);
-        syncUserToBackend(googleUser);
-        triggerToast(`Successfully signed in with Google as ${googleUser.name}! Complete onboarding to access your dashboard.`, 'green');
-      }
-      
+      const googleUser = {
+        name: payload.name,
+        email: payload.email,
+        avatar: payload.name.substring(0, 1).toUpperCase(),
+        avatarImg: payload.picture, // Google profile avatar url
+        role: 'owner',
+        niche: 'dental', // Default category
+        isOnboarded: false, // Must onboard!
+        businessName: '',
+        businessPhone: '',
+        businessAddress: '',
+        businessWebsite: '',
+        aiPersona: 'Friendly'
+      };
+      resolveUserProfileAndSetSession(googleUser);
       addActivity(`Google account connected: ${email}`, 'success');
     } catch (err) {
       console.error("Failed parsing Google credential JWT payload", err);
@@ -929,6 +915,59 @@ export default function App() {
     });
   };
 
+  // Helper: Try to restore user profile from backend SQLite DB on login
+  const resolveUserProfileAndSetSession = async (authUser) => {
+    const emailKey = authUser.email.toLowerCase();
+    const profilesLocal = localStorage.getItem('deskflow_user_profiles');
+    const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+    let existingProfile = profiles[emailKey];
+
+    // Use local storage profile temporarily if found
+    let initialUser = existingProfile || authUser;
+    setUser(initialUser);
+    localStorage.setItem('deskflow_user', JSON.stringify(initialUser));
+
+    // Fetch the actual profile from the backend SQLite DB to get the latest database data
+    try {
+      const res = await fetch(`${BACKEND_URL}/v1/business-profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authUser.email}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        const profileData = await res.json();
+        if (profileData && !profileData.isNew) {
+          // Profile exists on SQL backend! Let's merge and mark as onboarded
+          const fullProfile = {
+            ...initialUser,
+            ...profileData,
+            isOnboarded: true
+          };
+          setUser(fullProfile);
+          localStorage.setItem('deskflow_user', JSON.stringify(fullProfile));
+          
+          // Save to profiles list
+          profiles[emailKey] = fullProfile;
+          localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
+          
+          triggerToast(`Welcome back, ${fullProfile.name}!`, 'green');
+          addActivity(`Logged in and restored profile from database: ${fullProfile.email}`, 'success');
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching user profile from SQL backend:", err);
+    }
+    
+    // Fallback: If not on backend and we didn't find local profile, sync initial user to backend
+    if (!existingProfile) {
+      syncUserToBackend(authUser);
+    }
+  };
+
   // Auth: Recaptcha verification setup
   const setupRecaptcha = () => {
     try {
@@ -1016,33 +1055,21 @@ export default function App() {
         const email = `${phoneNumber.replace('+', '')}@deskflow.com`;
         const name = `Phone User (${phoneNumber})`;
         
-        const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-        const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-        let existingProfile = profiles[email.toLowerCase()];
-
-        let authUser;
-        if (existingProfile) {
-          authUser = existingProfile;
-          triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-        } else {
-          authUser = {
-            name: name,
-            email: email,
-            phone: phoneNumber,
-            avatar: 'P',
-            role: 'owner',
-            niche: 'dental',
-            isOnboarded: false,
-            businessName: '',
-            businessPhone: phoneNumber,
-            businessAddress: '',
-            businessWebsite: '',
-            aiPersona: 'Friendly'
-          };
-          triggerToast(`OTP verified! Welcome to DeskFlow. Complete profile onboarding.`, 'green');
-        }
-        setUser(authUser);
-        syncUserToBackend(authUser);
+        const authUser = {
+          name: name,
+          email: email,
+          phone: phoneNumber,
+          avatar: 'P',
+          role: 'owner',
+          niche: 'dental',
+          isOnboarded: false,
+          businessName: '',
+          businessPhone: phoneNumber,
+          businessAddress: '',
+          businessWebsite: '',
+          aiPersona: 'Friendly'
+        };
+        resolveUserProfileAndSetSession(authUser);
         addActivity(`User verified via Phone OTP (Demo): ${phoneNumber}`, 'success');
       }, 1000);
       return;
@@ -1056,34 +1083,21 @@ export default function App() {
       const email = `${userPhone.replace('+', '')}@deskflow.com`;
       const name = `User (${userPhone})`;
 
-      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-      let existingProfile = profiles[email.toLowerCase()];
-
-      let authUser;
-      if (existingProfile) {
-        authUser = existingProfile;
-        triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-      } else {
-        authUser = {
-          name: name,
-          email: email,
-          phone: userPhone,
-          avatar: 'P',
-          role: 'owner',
-          niche: 'dental',
-          isOnboarded: false,
-          businessName: '',
-          businessPhone: userPhone,
-          businessAddress: '',
-          businessWebsite: '',
-          aiPersona: 'Friendly'
-        };
-        triggerToast(`OTP verified! Welcome to DeskFlow. Complete profile onboarding.`, 'green');
-      }
-
-      setUser(authUser);
-      syncUserToBackend(authUser);
+      const authUser = {
+        name: name,
+        email: email,
+        phone: userPhone,
+        avatar: 'P',
+        role: 'owner',
+        niche: 'dental',
+        isOnboarded: false,
+        businessName: '',
+        businessPhone: userPhone,
+        businessAddress: '',
+        businessWebsite: '',
+        aiPersona: 'Friendly'
+      };
+      resolveUserProfileAndSetSession(authUser);
       addActivity(`User verified via Phone OTP: ${userPhone}`, 'success');
       setIsAuthLoading(false);
     } catch (error) {
@@ -1169,10 +1183,7 @@ export default function App() {
         aiPersona: 'Friendly'
       };
 
-      profiles[emailKey] = authUser;
-      localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
-      setUser(authUser);
-      syncUserToBackend(authUser);
+      resolveUserProfileAndSetSession(authUser);
       triggerToast("Account created successfully!", "green");
       addActivity(`New user registered via Email (Demo): ${email}`, 'success');
       
@@ -1195,39 +1206,25 @@ export default function App() {
           const email = auth.currentUser.email;
           const emailKey = email.toLowerCase();
           
-          const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-          const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-          
           const nameInputEl = document.querySelector('input[name="name"]');
           const nicheSelectEl = document.querySelector('select[name="nicheType"]');
           const name = nameInputEl?.value || email.split('@')[0];
           const selectedNiche = nicheSelectEl?.value || 'dental';
 
-          let existingProfile = profiles[emailKey];
-          let authUser;
-          if (existingProfile) {
-            authUser = existingProfile;
-            triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-          } else {
-            authUser = {
-              name: name,
-              email: email,
-              avatar: name.substring(0, 1).toUpperCase(),
-              role: 'owner',
-              niche: selectedNiche,
-              isOnboarded: false,
-              businessName: '',
-              businessPhone: '',
-              businessAddress: '',
-              businessWebsite: '',
-              aiPersona: 'Friendly'
-            };
-            profiles[emailKey] = authUser;
-            localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
-            triggerToast(`Email verified successfully!`, 'green');
-          }
-          setUser(authUser);
-          syncUserToBackend(authUser);
+          const authUser = {
+            name: name,
+            email: email,
+            avatar: name.substring(0, 1).toUpperCase(),
+            role: 'owner',
+            niche: selectedNiche,
+            isOnboarded: false,
+            businessName: '',
+            businessPhone: '',
+            businessAddress: '',
+            businessWebsite: '',
+            aiPersona: 'Friendly'
+          };
+          resolveUserProfileAndSetSession(authUser);
           addActivity(`User verified via Email: ${email}`, 'success');
           setVerificationEmailSent(false);
           setEmailInput('');
@@ -1259,36 +1256,22 @@ export default function App() {
         setIsAuthLoading(false);
         const emailKey = email.toLowerCase();
         
-        const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-        const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-        let existingProfile = profiles[emailKey];
-        
-        let authUser;
-        if (existingProfile) {
-          authUser = existingProfile;
-          triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-        } else {
-          const prefix = email.split('@')[0];
-          const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-          authUser = {
-            name: name,
-            email: email,
-            avatar: name.substring(0, 1).toUpperCase(),
-            role: 'owner',
-            niche: 'dental',
-            isOnboarded: false,
-            businessName: '',
-            businessPhone: '',
-            businessAddress: '',
-            businessWebsite: '',
-            aiPersona: 'Friendly'
-          };
-          profiles[emailKey] = authUser;
-          localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
-          triggerToast(`Welcome! Complete profile setup.`, 'green');
-        }
-        setUser(authUser);
-        syncUserToBackend(authUser);
+        const prefix = email.split('@')[0];
+        const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        const authUser = {
+          name: name,
+          email: email,
+          avatar: name.substring(0, 1).toUpperCase(),
+          role: 'owner',
+          niche: 'dental',
+          isOnboarded: false,
+          businessName: '',
+          businessPhone: '',
+          businessAddress: '',
+          businessWebsite: '',
+          aiPersona: 'Friendly'
+        };
+        resolveUserProfileAndSetSession(authUser);
         addActivity(`User signed in via Email (Demo): ${email}`, 'info');
         setEmailInput('');
         setPasswordInput('');
@@ -1309,37 +1292,22 @@ export default function App() {
       }
 
       const emailKey = firebaseUser.email.toLowerCase();
-      const profilesLocal = localStorage.getItem('deskflow_user_profiles');
-      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
-      let existingProfile = profiles[emailKey];
-
-      let authUser;
-      if (existingProfile) {
-        authUser = existingProfile;
-        triggerToast(`Welcome back, ${authUser.name}!`, 'green');
-      } else {
-        const prefix = firebaseUser.email.split('@')[0];
-        const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-        authUser = {
-          name: name,
-          email: firebaseUser.email,
-          avatar: name.substring(0, 1).toUpperCase(),
-          role: 'owner',
-          niche: 'dental',
-          isOnboarded: false,
-          businessName: '',
-          businessPhone: '',
-          businessAddress: '',
-          businessWebsite: '',
-          aiPersona: 'Friendly'
-        };
-        profiles[emailKey] = authUser;
-        localStorage.setItem('deskflow_user_profiles', JSON.stringify(profiles));
-        triggerToast(`Logged in successfully!`, 'green');
-      }
-
-      setUser(authUser);
-      syncUserToBackend(authUser);
+      const prefix = firebaseUser.email.split('@')[0];
+      const name = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+      const authUser = {
+        name: name,
+        email: firebaseUser.email,
+        avatar: name.substring(0, 1).toUpperCase(),
+        role: 'owner',
+        niche: 'dental',
+        isOnboarded: false,
+        businessName: '',
+        businessPhone: '',
+        businessAddress: '',
+        businessWebsite: '',
+        aiPersona: 'Friendly'
+      };
+      resolveUserProfileAndSetSession(authUser);
       addActivity(`User logged in via Email: ${firebaseUser.email}`, 'info');
       setIsAuthLoading(false);
       setEmailInput('');
