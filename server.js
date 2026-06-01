@@ -21,6 +21,9 @@ const app = express();
 app.use(express.json());
 app.use(cors()); // Enable Cross-Origin Resource Sharing for frontend dashboard
 
+// Serve static files from the built React app (Vite build)
+app.use(express.static(path.join(process.cwd(), 'dist')));
+
 const PORT = process.env.PORT || 3000;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
@@ -130,7 +133,7 @@ async function checkAuth(req, res, next) {
     if (!process.env.VITE_FIREBASE_API_KEY || 
         process.env.VITE_FIREBASE_API_KEY.includes("ChangeMe") || 
         token.split('.').length !== 3) {
-      req.user = { email: token.includes('@') ? token : 'default@deskflow.com' };
+      req.user = { email: token.includes('@') ? token : 'kartikparashar15@gmail.com' };
       return next();
     }
 
@@ -292,7 +295,7 @@ app.post('/v1/webhooks', async (req, res) => {
           businessPhone: '+91 99000 88000',
           businessWebsite: 'https://www.deskflowai.com',
           aiPersona: 'Friendly',
-          email: 'default@deskflow.com'
+          email: 'kartikparashar15@gmail.com'
         };
 
         // Process message, reply on WhatsApp, and save to CRM database in a single Gemini call
@@ -911,7 +914,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     }
 
     // 2. Save CRM details to SQL database
-    const ownerEmail = profile.email || 'default@deskflow.com';
+    const ownerEmail = profile.email || 'kartikparashar15@gmail.com';
 
     if (!db) {
       console.warn('[AI Engine] Database not initialized. Skipping CRM log.');
@@ -964,6 +967,15 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     await sendWhatsAppMessage(customerPhone, `Hi ${customerName}, thank you for contacting us. We received your request and will get back to you shortly!`, profile);
   }
 }
+
+// Catch-all route to serve the React index.html for client-side routing (Single Page App)
+app.get('*', (req, res, next) => {
+  // If the request starts with /v1/ or is for Meta privacy policy, let it pass through to the routing handlers
+  if (req.path.startsWith('/v1/') || req.path === '/privacy') {
+    return next();
+  }
+  res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
