@@ -969,12 +969,16 @@ export default function App() {
     }
   };
 
-  // Payments: Trigger Razorpay Checkout for Starter Plan Subscription (₹999/mo)
-  const handlePayment = async () => {
+  // Payments: Trigger Razorpay Checkout for SaaS Plans (₹999/mo Starter or ₹2,499/mo Pro)
+  const handlePayment = async (planType = 'starter') => {
     if (!user) {
       triggerToast("You must be logged in to activate a plan.", "red");
       return;
     }
+    
+    const isPro = planType === 'pro';
+    const amount = isPro ? 2499 : 999;
+    const planName = isPro ? "SaaS Pro Plan Subscription" : "SaaS Starter Plan Subscription";
     
     setIsPaymentLoading(true);
     try {
@@ -982,7 +986,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: 999,
+          amount: amount,
           currency: 'INR'
         })
       });
@@ -998,7 +1002,7 @@ export default function App() {
       
       // If we are in mock mode (using dummy keys), simulate a successful transaction dialog
       if (orderData.isMock) {
-        triggerToast("Demo Mode: Simulating checkout payment gateway...", "blue");
+        triggerToast(`Demo Mode: Simulating checkout payment gateway for ${planType.toUpperCase()}...`, "blue");
         setTimeout(async () => {
           try {
             triggerToast("Simulated payment successful! Verifying with database...", "blue");
@@ -1008,7 +1012,8 @@ export default function App() {
               body: JSON.stringify({
                 razorpay_order_id: orderData.orderId,
                 razorpay_payment_id: `pay_mock_${Date.now()}`,
-                razorpay_signature: 'dummy_signature_verified'
+                razorpay_signature: 'dummy_signature_verified',
+                plan: planType
               })
             });
             
@@ -1018,7 +1023,7 @@ export default function App() {
             
             const verifyData = await verifyResponse.json();
             if (verifyData.success) {
-              triggerToast("Subscription activated successfully (Demo Mode)!", "green");
+              triggerToast(`Subscription activated successfully for ${planType.toUpperCase()} (Demo Mode)!`, "green");
               // Re-fetch user profile to update state
               if (auth.currentUser) {
                 resolveUserProfileAndSetSession(auth.currentUser);
@@ -1055,7 +1060,7 @@ export default function App() {
         amount: orderData.amount,
         currency: orderData.currency,
         name: "FrontDesk AI",
-        description: "SaaS Starter Plan Subscription",
+        description: planName,
         image: user.avatarImg || "https://app.frontdeskai.shop/logo.png",
         order_id: orderData.orderId,
         handler: async function (paymentResponse) {
@@ -1067,7 +1072,8 @@ export default function App() {
               body: JSON.stringify({
                 razorpay_order_id: paymentResponse.razorpay_order_id,
                 razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature
+                razorpay_signature: paymentResponse.razorpay_signature,
+                plan: planType
               })
             });
             
@@ -1077,7 +1083,7 @@ export default function App() {
             
             const verifyData = await verifyResponse.json();
             if (verifyData.success) {
-              triggerToast("Subscription activated successfully!", "green");
+              triggerToast(`Subscription activated successfully for ${planType.toUpperCase()}!`, "green");
               // Re-fetch user profile to update state from SQLite database
               if (auth.currentUser) {
                 resolveUserProfileAndSetSession(auth.currentUser);
@@ -2709,6 +2715,101 @@ export default function App() {
     );
   }
 
+  // Calculate trial status & subscription lock
+  const isSubscribed = user && user.isSubscribed === true;
+  const trialPeriodMs = 3 * 24 * 60 * 60 * 1000; // 3 days
+  const trialExpiry = user && user.trialStart ? new Date(new Date(user.trialStart).getTime() + trialPeriodMs) : null;
+  const isTrialActive = trialExpiry ? (new Date() < trialExpiry) : false;
+  const hasActivePlan = (user && user.role === 'admin') || isSubscribed || isTrialActive;
+
+  const getTrialRemainingText = () => {
+    if (!user || !user.trialStart) return "No active trial";
+    const now = new Date();
+    const expiry = new Date(new Date(user.trialStart).getTime() + 3 * 24 * 60 * 60 * 1000);
+    const diffMs = expiry - now;
+    if (diffMs <= 0) return "Trial Expired";
+    
+    const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+    if (diffHours > 24) {
+      const days = Math.floor(diffHours / 24);
+      const hours = diffHours % 24;
+      return `${days}d ${hours}h remaining`;
+    }
+    return `${diffHours} hours remaining`;
+  };
+
+  // Lock Overlay Component for Inactive Subscriptions
+  const renderLockOverlay = (featureName) => {
+    return (
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        background: 'rgba(255, 255, 255, 0.4)',
+        backdropFilter: 'blur(8px)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: '12px',
+        animation: 'fadeIn 0.3s ease',
+        boxSizing: 'border-box',
+        padding: '20px'
+      }}>
+        <div className="glass-panel" style={{
+          padding: '30px 40px',
+          maxWidth: '460px',
+          textAlign: 'center',
+          border: '1px solid rgba(217, 48, 37, 0.25)',
+          background: 'var(--bg-card)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.08)',
+          borderRadius: '16px'
+        }}>
+          <div style={{ 
+            width: '56px', 
+            height: '56px', 
+            borderRadius: '50%', 
+            backgroundColor: 'rgba(217, 48, 37, 0.1)', 
+            color: '#d93025', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            margin: '0 auto 16px auto'
+          }}>
+            <Lock size={26} />
+          </div>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>
+            🔒 {featureName} Locked
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '20px' }}>
+            Your 3-day free trial has expired. To keep using {featureName}, please select one of our premium plans in the Billing tab.
+          </p>
+          <button 
+            onClick={() => setActiveTab('billing')}
+            style={{
+              padding: '10px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #0070f3 0%, #00dfd8 100%)',
+              color: '#fff',
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(0, 118, 255, 0.25)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            Go to Billing & Subscription
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // SCREEN RENDER 2: DASHBOARD HOME
   return (
     <div className="app-container">
@@ -3163,6 +3264,16 @@ export default function App() {
             </li>
             <li>
               <button 
+                onClick={() => setActiveTab('billing')}
+                className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+              >
+                <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
+                <span>Billing & Subscription</span>
+              </button>
+            </li>
+            <li>
+              <button 
                 onClick={() => setActiveTab('profile')}
                 className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
@@ -3266,16 +3377,12 @@ export default function App() {
               <span className="pulse-dot"></span>
               WhatsApp Agent Active
             </span>
-            <div className="glass-panel" style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Plan:</span>
-              <span style={{ color: 'var(--accent-purple)', fontWeight: '600' }}>₹999/mo Starter</span>
-            </div>
           </div>
         </div>
 
-        {/* Tab 1: Dashboard overview */}
         {activeTab === 'dashboard' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('Dashboard Analytics')}
             
             <div className="kpi-grid">
               <div className="glass-panel kpi-card">
@@ -3436,7 +3543,8 @@ export default function App() {
 
         {/* Tab 2: Leads Table */}
         {activeTab === 'leads' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('Lead Manager CRM')}
             
             <div className="search-filter-row">
               <div className="search-input-wrapper">
@@ -3577,7 +3685,8 @@ export default function App() {
 
         {/* Tab 3: Appointments */}
         {activeTab === 'appointments' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('Appointment Scheduler')}
             
             <div className="calendar-header">
               <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Active Booking Calendar</h3>
@@ -3741,7 +3850,8 @@ export default function App() {
 
         {/* Tab 3.5: Broadcast Campaigns */}
         {activeTab === 'campaigns' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('Outbound Marketing Campaigns')}
             <div className="calendar-header">
               <h3 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Outbound Broadcast Campaigns</h3>
               <span className="badge badge-converted">Marketing Engine Active</span>
@@ -3877,7 +3987,8 @@ export default function App() {
 
         {/* Tab 4: Automation Hub */}
         {activeTab === 'automation' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('WhatsApp AI Assistant Config')}
             
             <div className="automation-sections">
               
@@ -4106,7 +4217,8 @@ export default function App() {
 
         {/* Tab 5: Rewards */}
         {activeTab === 'rewards' && (
-          <div className="tab-content">
+          <div className="tab-content" style={{ position: 'relative' }}>
+            {!hasActivePlan && renderLockOverlay('Reviews & Viral Referrals')}
             
             <div className="dashboard-details-grid">
               
@@ -4191,23 +4303,322 @@ export default function App() {
 
             </div>
 
-            <div className="glass-panel" style={{ padding: '24px' }}>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
-                Your SaaS Pricing Architecture (For Manual Pitching)
+          </div>
+        )}
+
+        {/* Tab 5.5: Billing & Subscription */}
+        {activeTab === 'billing' && (
+          <div className="tab-content" style={{ animation: 'fadeIn 0.4s ease' }}>
+            
+            {/* Header section */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  Billing & Subscription
+                </h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Manage your subscription plans, view billing details, and verify active feature tiers.
+                </p>
+              </div>
+              <div className="badge badge-new" style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Coins size={14} style={{ color: 'var(--accent-yellow)' }} />
+                Secure Payments via Razorpay
+              </div>
+            </div>
+
+            {/* Current Subscription Status Panel */}
+            <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '12px',
+                  background: 'rgba(0, 112, 243, 0.1)',
+                  color: '#0070f3',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Shield size={24} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                    {isSubscribed 
+                      ? `${user.subscriptionPlan === 'pro' ? 'Pro Plan' : 'Starter Plan'} Subscribed` 
+                      : isTrialActive 
+                        ? '3-Day Free Trial Mode' 
+                        : 'No Active Subscription'}
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {isSubscribed 
+                      ? 'Your subscription is active and renews monthly.' 
+                      : isTrialActive 
+                        ? `Enjoy unlimited features. Trial ends: ${trialExpiry ? new Date(trialExpiry).toLocaleString() : ''}` 
+                        : 'Your trial has ended. Please subscribe below to re-enable your services.'}
+                  </p>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>STATUS</div>
+                  <span className={`badge ${hasActivePlan ? 'badge-converted' : 'badge-new'}`} style={{ fontWeight: '700', padding: '4px 10px' }}>
+                    {isSubscribed ? 'SUBSCRIBED' : isTrialActive ? 'FREE TRIAL' : 'EXPIRED'}
+                  </span>
+                </div>
+                
+                {isTrialActive && (
+                  <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-light)', paddingLeft: '12px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>TIME LEFT</div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
+                      {getTrialRemainingText()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pricing Section */}
+            <div style={{ marginBottom: '32px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                Choose Your Plan
               </h3>
               
-              <div className="pricing-overview">
-                <div className="pricing-card">
-                  <span className="pricing-tag">Starter Tier</span>
-                  <span className="pricing-price">₹999 / month</span>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Include AI Chat Capture, Appointment Booking and 100 Lead SMS/WhatsApp notifications.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                
+                {/* Starter Tier */}
+                <div className="glass-panel pricing-card" style={{ 
+                  padding: '30px', 
+                  borderRadius: '16px',
+                  border: user && user.subscriptionPlan === 'starter' ? '2px solid #0070f3' : '1px solid var(--border-light)',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  background: user && user.subscriptionPlan === 'starter' ? 'rgba(0, 112, 243, 0.03)' : 'var(--bg-card)'
+                }}>
+                  {user && user.subscriptionPlan === 'starter' && (
+                    <span className="pricing-tag" style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: '#0070f3', color: '#fff', fontSize: '0.7rem', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                      ACTIVE PLAN
+                    </span>
+                  )}
+                  <div>
+                    <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>Starter Tier</h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Perfect for growing local businesses seeking automated client capture.</p>
+                    
+                    <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '24px' }}>
+                      <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹999</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>/ month</span>
+                    </div>
+                    
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-purple)' }} />
+                        AI WhatsApp Lead Capture & Sync
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-purple)' }} />
+                        Calendar Appointment Scheduler
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-purple)' }} />
+                        100 Auto-notifications (SMS/WhatsApp)
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-purple)' }} />
+                        Basic Dashboard Analytics
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button 
+                    onClick={() => handlePayment('starter')}
+                    disabled={user && (user.subscriptionPlan === 'starter' || user.subscriptionPlan === 'pro')}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: user && user.subscriptionPlan === 'starter' 
+                        ? 'rgba(0, 112, 243, 0.1)' 
+                        : user && user.subscriptionPlan === 'pro'
+                          ? 'var(--border-light)'
+                          : 'linear-gradient(135deg, #0070f3 0%, #00bdf3 100%)',
+                      color: user && (user.subscriptionPlan === 'starter' || user.subscriptionPlan === 'pro') ? 'var(--text-muted)' : '#fff',
+                      fontSize: '0.85rem',
+                      fontWeight: '700',
+                      cursor: user && (user.subscriptionPlan === 'starter' || user.subscriptionPlan === 'pro') ? 'default' : 'pointer',
+                      boxShadow: user && (user.subscriptionPlan === 'starter' || user.subscriptionPlan === 'pro') ? 'none' : '0 4px 14px rgba(0, 112, 243, 0.25)',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!(user && (user.subscriptionPlan === 'starter' || user.subscriptionPlan === 'pro'))) {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    {user && user.subscriptionPlan === 'starter' 
+                      ? 'Current Plan' 
+                      : user && user.subscriptionPlan === 'pro'
+                        ? 'Starter Plan Tier'
+                        : 'Subscribe Starter Plan'}
+                  </button>
                 </div>
-                <div className="pricing-card" style={{ borderColor: 'var(--accent-purple)' }}>
-                  <span className="pricing-tag" style={{ color: 'var(--accent-purple)' }}>Pro Tier (Recommended)</span>
-                  <span className="pricing-price">₹2,499 / month</span>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Uncapped AI Messages, Review request growth automation, Referral code engine, and Analytics dashboard.</p>
+
+                {/* Pro Tier */}
+                <div className="glass-panel pricing-card" style={{ 
+                  padding: '30px', 
+                  borderRadius: '16px',
+                  border: user && user.subscriptionPlan === 'pro' ? '2px solid var(--accent-purple)' : '1px solid rgba(138, 43, 226, 0.25)',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 32px rgba(138, 43, 226, 0.1)',
+                  background: user && user.subscriptionPlan === 'pro' ? 'rgba(138, 43, 226, 0.03)' : 'var(--bg-card)'
+                }}>
+                  <span className="pricing-tag" style={{ position: 'absolute', top: '16px', right: '16px', backgroundColor: 'var(--accent-purple)', color: '#fff', fontSize: '0.7rem', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                    {user && user.subscriptionPlan === 'pro' ? 'ACTIVE PLAN' : 'RECOMMENDED'}
+                  </span>
+                  
+                  <div>
+                    <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>Pro Tier</h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Advanced scaling solutions for frontdesk automation and referral growth.</p>
+                    
+                    <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '24px' }}>
+                      <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹2,499</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>/ month</span>
+                    </div>
+                    
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
+                        <strong>Uncapped</strong> AI Messages & Lead Routing
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
+                        Review Request growth automation
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
+                        Referral code & Reward engine config
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
+                        Advanced Analytics & CSV Export
+                      </li>
+                      <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
+                        24/7 Dedicated Account Manager
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button 
+                    onClick={() => handlePayment('pro')}
+                    disabled={user && user.subscriptionPlan === 'pro'}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: user && user.subscriptionPlan === 'pro' 
+                        ? 'rgba(138, 43, 226, 0.1)' 
+                        : 'linear-gradient(135deg, #8a2be2 0%, #da70d6 100%)',
+                      color: user && user.subscriptionPlan === 'pro' ? 'var(--text-muted)' : '#fff',
+                      fontSize: '0.85rem',
+                      fontWeight: '700',
+                      cursor: user && user.subscriptionPlan === 'pro' ? 'default' : 'pointer',
+                      boxShadow: user && user.subscriptionPlan === 'pro' ? 'none' : '0 4px 14px rgba(138, 43, 226, 0.25)',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!(user && user.subscriptionPlan === 'pro')) {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    {user && user.subscriptionPlan === 'pro' 
+                      ? 'Current Plan' 
+                      : user && user.subscriptionPlan === 'starter'
+                        ? 'Upgrade to Pro Tier'
+                        : 'Subscribe Pro Plan'}
+                  </button>
                 </div>
+
+              </div>
+            </div>
+
+            {/* Billing History (Transaction log) */}
+            <div className="glass-panel" style={{ padding: '24px', borderRadius: '12px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={18} style={{ color: 'var(--accent-cyan)' }} />
+                Transaction & Invoice History
+              </h3>
+              
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>DATE</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>DESCRIPTION</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>AMOUNT</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>TRANSACTION ID</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Dynamic Subscription row if subscribed */}
+                    {isSubscribed && (
+                      <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '12px 8px', fontWeight: '600' }}>
+                          {new Date().toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          SaaS {user.subscriptionPlan === 'pro' ? 'Pro Plan' : 'Starter Plan'} Monthly Subscription
+                        </td>
+                        <td style={{ padding: '12px 8px', fontWeight: '700' }}>
+                          {user.subscriptionPlan === 'pro' ? '₹2,499.00' : '₹999.00'}
+                        </td>
+                        <td style={{ padding: '12px 8px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          pay_rzp_{user.trialStart ? new Date(user.trialStart).getTime().toString().slice(-6) : '99812'}
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span className="badge badge-converted" style={{ fontSize: '0.7rem' }}>SUCCESS</span>
+                        </td>
+                      </tr>
+                    )}
+                    
+                    {/* Standard Trial Activation log */}
+                    {user && user.trialStart && (
+                      <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '12px 8px', fontWeight: '600' }}>
+                          {new Date(user.trialStart).toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          FrontDesk AI 3-Day Free Trial Setup
+                        </td>
+                        <td style={{ padding: '12px 8px', fontWeight: '700' }}>
+                          ₹0.00
+                        </td>
+                        <td style={{ padding: '12px 8px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          trial_init_{new Date(user.trialStart).getTime().toString().slice(-6)}
+                        </td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span className="badge badge-new" style={{ fontSize: '0.7rem' }}>
+                            {isTrialActive ? 'ACTIVE' : 'COMPLETED'}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 

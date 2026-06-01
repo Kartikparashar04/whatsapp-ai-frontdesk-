@@ -98,7 +98,9 @@ async function initSQLite() {
         business_website TEXT,
         ai_persona TEXT,
         phone_number_id TEXT,
-        whatsapp_config TEXT
+        whatsapp_config TEXT,
+        trial_start TEXT DEFAULT NULL,
+        subscription_plan TEXT DEFAULT NULL
       );
       
       CREATE TABLE IF NOT EXISTS referrals (
@@ -122,13 +124,16 @@ async function initSQLite() {
       );
     `);
     
-    // Add is_subscribed column if it doesn't exist
+    // Add columns if they don't exist
     try {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN is_subscribed INTEGER DEFAULT 0`);
-      console.log('Successfully ran migration to add is_subscribed column.');
-    } catch (err) {
-      // Column already exists, safe to ignore
-    }
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN trial_start TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN subscription_plan TEXT DEFAULT NULL`);
+    } catch (err) {}
     
     console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews) initialized successfully!');
   } catch (error) {
@@ -178,9 +183,6 @@ if (GEMINI_API_KEY) {
   }
 }
 
-/**
- * Helper: Load a specific Business Profile by email from SQLite DB
- */
 async function getProfileByEmail(email) {
   try {
     if (!db) return null;
@@ -195,6 +197,8 @@ async function getProfileByEmail(email) {
       row.businessAddress = row.business_address;
       row.businessWebsite = row.business_website;
       row.aiPersona = row.ai_persona;
+      row.trialStart = row.trial_start;
+      row.subscriptionPlan = row.subscription_plan;
     }
     return row || null;
   } catch (error) {
@@ -354,13 +358,21 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
     const is_onboarded = profileData.isOnboarded ? 1 : 0;
     const is_subscribed = profileData.isSubscribed ? 1 : 0;
 
+    // Check or initialize trial_start
+    let trial_start = profileData.trialStart || null;
+    if (!trial_start) {
+      const existing = await getProfileByEmail(emailKey);
+      trial_start = (existing && existing.trialStart) ? existing.trialStart : new Date().toISOString();
+    }
+    const subscription_plan = profileData.subscriptionPlan || null;
+
     await db.run(`
       INSERT INTO business_profiles (
         email, name, avatar, avatar_img, role, niche, is_onboarded, is_subscribed, 
         business_name, business_phone, business_address, business_website, 
-        ai_persona, phone_number_id, whatsapp_config
+        ai_persona, phone_number_id, whatsapp_config, trial_start, subscription_plan
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         avatar = excluded.avatar,
@@ -375,7 +387,9 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
         business_website = excluded.business_website,
         ai_persona = excluded.ai_persona,
         phone_number_id = excluded.phone_number_id,
-        whatsapp_config = excluded.whatsapp_config
+        whatsapp_config = excluded.whatsapp_config,
+        trial_start = excluded.trial_start,
+        subscription_plan = excluded.subscription_plan
     `,
       emailKey,
       profileData.name || '',
@@ -391,7 +405,9 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       profileData.businessWebsite || '',
       profileData.aiPersona || 'Friendly',
       profileData.phoneNumberId || '',
-      whatsappConfigStr
+      whatsappConfigStr,
+      trial_start,
+      subscription_plan
     );
 
     console.log(`Successfully synced business profile for email ${emailKey}`);
@@ -451,7 +467,7 @@ app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
  */
 app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body;
     const emailKey = req.user.email.toLowerCase();
 
     // Verify signature
@@ -470,9 +486,9 @@ app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
       // Mark as onboarded and update plan/status in DB
       await db.run(`
         UPDATE business_profiles 
-        SET is_onboarded = 1, is_subscribed = 1
+        SET is_onboarded = 1, is_subscribed = 1, subscription_plan = ?
         WHERE email = ?
-      `, emailKey);
+      `, plan || 'starter', emailKey);
 
       console.log(`Payment successful and verified for email ${emailKey}`);
       return res.status(200).json({
