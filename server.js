@@ -682,12 +682,103 @@ app.get('/v1/users', checkAuth, async (req, res) => {
 /**
  * 4. GET WhatsApp captured CRM Leads
  */
+async function seedDefaultDataForUser(email) {
+  try {
+    const emailKey = email.toLowerCase();
+    
+    // Check if the user already has any leads
+    const leadCount = await db.get('SELECT COUNT(*) as count FROM leads WHERE owner_email = ?', emailKey);
+    if (leadCount && leadCount.count > 0) {
+      return;
+    }
+
+    console.log(`[Database Seeding] Seeding initial mock data for user: ${emailKey}`);
+
+    // Initial Leads
+    const initialLeads = [
+      { id: `l-1-${Date.now()}`, name: 'Anjali Sharma', phone: '+91 98765 43210', requirement: 'Full Teeth Whitening & Polishing', budget: '₹4,500', location: 'Indiranagar, Bangalore', status: 'converted', niche: 'dental', source: 'WhatsApp AI' },
+      { id: `l-2-${Date.now()}`, name: 'Rohan Verma', phone: '+91 99123 45678', requirement: 'Root Canal Consultation', budget: '₹6,000', location: 'Koramangala, Bangalore', status: 'new', niche: 'dental', source: 'WhatsApp AI' },
+      { id: `l-3-${Date.now()}`, name: 'Priyanka Sen', phone: '+91 95555 88888', requirement: 'Balayage Hair Coloring & Hair Spa', budget: '₹7,500', location: 'HSR Layout, Bangalore', status: 'followed_up', niche: 'salon', source: 'WhatsApp AI' },
+      { id: `l-4-${Date.now()}`, name: 'Amit Patel', phone: '+91 98222 33333', requirement: 'Dental Implants Pricing', budget: '₹35,000', location: 'Whitefield, Bangalore', status: 'new', niche: 'dental', source: 'WhatsApp AI' },
+      { id: `l-5-${Date.now()}`, name: 'Karan Malhotra', phone: '+91 91234 56789', requirement: 'Haircut & Beard Styling', budget: '₹1,200', location: 'Jayanagar, Bangalore', status: 'converted', niche: 'salon', source: 'WhatsApp AI' },
+      { id: `l-6-${Date.now()}`, name: 'Sneha Reddy', phone: '+91 88888 77777', requirement: 'Bridal Makeup consultation', budget: '₹15,000', location: 'Indiranagar, Bangalore', status: 'new', niche: 'salon', source: 'WhatsApp AI' }
+    ];
+
+    // Initial Appointments
+    const initialAppts = [
+      { id: `a-1-${Date.now()}`, name: 'Anjali Sharma', phone: '+91 98765 43210', service: 'Teeth Whitening', dateTime: '2026-06-05T11:00:00', status: 'confirmed', reminderSent: 1 },
+      { id: `a-2-${Date.now()}`, name: 'Karan Malhotra', phone: '+91 91234 56789', service: 'Premium Haircut & Beard', dateTime: '2026-06-05T14:30:00', status: 'confirmed', reminderSent: 1 },
+      { id: `a-3-${Date.now()}`, name: 'Vikram Seth', phone: '+91 93211 44556', service: 'Dental Cleaning', dateTime: '2026-06-06T10:00:00', status: 'pending', reminderSent: 0 },
+      { id: `a-4-${Date.now()}`, name: 'Priyanka Sen', phone: '+91 95555 88888', service: 'Balayage Coloring & Spa', dateTime: '2026-06-06T16:00:00', status: 'pending', reminderSent: 0 }
+    ];
+
+    // Initial Referrals
+    const initialReferrals = [
+      { id: `r-1-${Date.now()}`, code: 'REF-SMILE-991', referrer_name: 'Anjali Sharma', referrer_phone: '+91 98765 43210', referred_phone: '+91 90000 11111', status: 'redeemed', discount_value: '10% Off' },
+      { id: `r-2-${Date.now()}`, code: 'REF-GLOW-724', referrer_name: 'Karan Malhotra', referrer_phone: '+91 91234 56789', referred_phone: '+91 94444 55555', status: 'sent', discount_value: '₹500 Coupon' },
+      { id: `r-3-${Date.now()}`, code: 'REF-SMILE-442', referrer_name: 'Rahul Goel', referrer_phone: '+91 87654 32109', referred_phone: '', status: 'generated', discount_value: '10% Off' }
+    ];
+
+    // Initial Reviews
+    const initialReviews = [
+      { id: `rev-1-${Date.now()}`, customer_name: 'Anjali Sharma', rating: 5, comment: 'Wonderful whitening service! The booking process on WhatsApp was insanely fast.', status: 'completed', niche: 'dental' },
+      { id: `rev-2-${Date.now()}`, customer_name: 'Karan Malhotra', rating: 5, comment: 'Loved the haircut. Got a direct WhatsApp review reminder and referral discount.', status: 'completed', niche: 'salon' },
+      { id: `rev-3-${Date.now()}`, customer_name: 'Rohan Verma', rating: 4, comment: 'Quick service, but busy schedule.', status: 'completed', niche: 'dental' },
+      { id: `rev-4-${Date.now()}`, customer_name: 'Amit Patel', rating: 0, comment: '', status: 'sent', niche: 'dental' }
+    ];
+
+    // Insert Leads
+    for (const lead of initialLeads) {
+      await db.run(
+        `INSERT INTO leads (id, owner_email, name, phone, requirement, budget, location, status, source, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        lead.id, emailKey, lead.name, lead.phone, lead.requirement, lead.budget, lead.location, lead.status, lead.source, new Date().toISOString()
+      );
+    }
+
+    // Insert Appointments
+    for (const appt of initialAppts) {
+      await db.run(
+        `INSERT INTO appointments (id, owner_email, name, phone, service, date_time, status, reminder_sent)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        appt.id, emailKey, appt.name, appt.phone, appt.service, appt.dateTime, appt.status, appt.reminderSent
+      );
+    }
+
+    // Insert Referrals
+    for (const ref of initialReferrals) {
+      await db.run(
+        `INSERT INTO referrals (id, owner_email, referrer_name, referrer_phone, code, discount_value, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ref.id, emailKey, ref.referrer_name, ref.referrer_phone, ref.code, ref.discount_value, ref.status
+      );
+    }
+
+    // Insert Reviews
+    for (const rev of initialReviews) {
+      await db.run(
+        `INSERT INTO reviews (id, owner_email, customer_name, rating, comment, status, niche)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        rev.id, emailKey, rev.customer_name, rev.rating, rev.comment, rev.status, rev.niche
+      );
+    }
+
+    console.log(`[Database Seeding] Successfully seeded CRM mock data for new user ${emailKey}`);
+  } catch (error) {
+    console.error('[Database Seeding] Error seeding CRM mock data:', error.message);
+  }
+}
+
 app.get('/v1/leads', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.email.toLowerCase();
     if (!db) {
       return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     }
+    
+    // Seed database if empty for this user
+    await seedDefaultDataForUser(emailKey);
+
     const rows = await db.all('SELECT * FROM leads WHERE owner_email = ? ORDER BY date DESC', emailKey);
     return res.status(200).json(rows);
   } catch (error) {

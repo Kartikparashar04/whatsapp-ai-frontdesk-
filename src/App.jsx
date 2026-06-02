@@ -511,6 +511,8 @@ export default function App() {
   const [conflictWarning, setConflictWarning] = useState('');
   
   // UI Helpers
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [leadFilter, setLeadFilter] = useState('all');
   const [toast, setToast] = useState(null);
@@ -3197,12 +3199,58 @@ export default function App() {
         </div>
       )}
 
+      {/* Mobile Header Bar */}
+      <header className="mobile-header">
+        <button className="mobile-menu-toggle" onClick={() => setIsMobileMenuOpen(true)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div className="logo-container" style={{ padding: 0 }}>
+          <div className="logo-icon" style={{ width: '28px', height: '28px', fontSize: '1rem', borderRadius: '6px' }}>D</div>
+          <span className="logo-text" style={{ fontSize: '1.1rem' }}>FrontDesk AI</span>
+        </div>
+        <button 
+          className="mobile-sim-toggle-btn"
+          onClick={() => setIsSimulatorOpen(true)}
+          style={{
+            background: 'var(--accent-purple-glow)',
+            color: 'var(--accent-purple)',
+            border: '1px solid rgba(26, 115, 232, 0.2)',
+            padding: '6px 12px',
+            borderRadius: '100px',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <Smartphone size={12} />
+          Simulator
+        </button>
+      </header>
+
+      {/* Sidebar Drawer Backdrop */}
+      {isMobileMenuOpen && (
+        <div className="sidebar-backdrop" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
+      {/* Simulator Drawer Backdrop */}
+      {isSimulatorOpen && (
+        <div className="simulator-backdrop" onClick={() => setIsSimulatorOpen(false)}></div>
+      )}
+
       {/* Sidebar Nav */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div>
-          <div className="logo-container">
-            <div className="logo-icon">D</div>
-            <span className="logo-text">FrontDesk AI</span>
+          <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="logo-icon">D</div>
+              <span className="logo-text">FrontDesk AI</span>
+            </div>
+            <button className="sidebar-close-btn" onClick={() => setIsMobileMenuOpen(false)}>
+              <X size={18} />
+            </button>
           </div>
 
           {/* User Profile Block with Real Google Avatar */}
@@ -3237,7 +3285,7 @@ export default function App() {
           <ul className="sidebar-menu">
             <li>
               <button 
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3247,7 +3295,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('leads')}
+                onClick={() => { setActiveTab('leads'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'leads' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3257,7 +3305,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('appointments')}
+                onClick={() => { setActiveTab('appointments'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'appointments' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3267,7 +3315,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('automation')}
+                onClick={() => { setActiveTab('automation'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'automation' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3277,7 +3325,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('rewards')}
+                onClick={() => { setActiveTab('rewards'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'rewards' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3287,7 +3335,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('campaigns')}
+                onClick={() => { setActiveTab('campaigns'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'campaigns' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3297,7 +3345,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('billing')}
+                onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -3307,7 +3355,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => setActiveTab('profile')}
+                onClick={() => { setActiveTab('profile'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -5062,7 +5110,13 @@ Your main tasks are:
       </main>
 
       {/* WhatsApp Playground Sidebar */}
-      <section className="simulator-panel">
+      <section className={`simulator-panel ${isSimulatorOpen ? 'mobile-open' : ''}`}>
+        
+        <div className="simulator-mobile-close">
+          <button className="btn-close-sim" onClick={() => setIsSimulatorOpen(false)}>
+            <X size={18} />
+          </button>
+        </div>
         
         <div className="simulator-header-text">
           <h3 style={{ display: 'flex', alignItems: 'center', justify: 'center', gap: '8px' }}>
@@ -5186,6 +5240,12 @@ Your main tasks are:
         </div>
 
       </section>
+
+      {/* Floating Action Button for Mobile Simulator */}
+      <button className="floating-sim-fab" onClick={() => setIsSimulatorOpen(true)}>
+        <Smartphone size={18} />
+        <span>Simulator</span>
+      </button>
 
     </div>
   );
