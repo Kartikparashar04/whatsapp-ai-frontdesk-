@@ -646,68 +646,56 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const mergeCRMData = (currentList, newList) => {
-      const merged = [...currentList];
-      let updated = false;
-      
-      newList.forEach(item => {
-        const exists = merged.some(existing => existing.id === item.id);
-        if (!exists) {
-          merged.push(item);
-          updated = true;
-        }
-      });
-      return { merged, updated };
-    };
-
-    const interval = setInterval(async () => {
+    const syncCRMData = async () => {
       try {
         // 1. Fetch leads from WhatsApp backend
         const resLeads = await authenticatedFetch(`${BACKEND_URL}/v1/leads`);
-        if (!resLeads.ok) return;
-        const waLeads = await resLeads.json();
-        
-        setLeads(prevLeads => {
-          const { merged, updated } = mergeCRMData(prevLeads, waLeads);
-          if (updated) {
-            triggerToast("New Lead captured from WhatsApp AI!", "green");
-            addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
-            playAudioSfx('receive');
-            flashTabTitle("⚠️ New WhatsApp Lead!");
-          }
-          return merged;
-        });
+        if (resLeads.ok) {
+          const waLeads = await resLeads.json();
+          setLeads(prevLeads => {
+            const isMock = prevLeads.some(l => l.id === 'l-1' || l.id === 'l-2');
+            const hasNew = waLeads.some(item => !prevLeads.some(existing => existing.id === item.id));
+            if (hasNew && prevLeads.length > 0 && !isMock) {
+              triggerToast("New Lead captured from WhatsApp AI!", "green");
+              addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
+              playAudioSfx('receive');
+              flashTabTitle("⚠️ New WhatsApp Lead!");
+            }
+            localStorage.setItem('frontdesk_leads', JSON.stringify(waLeads));
+            return waLeads;
+          });
+        }
 
         // 2. Fetch appointments from WhatsApp backend
         const resAppts = await authenticatedFetch(`${BACKEND_URL}/v1/appointments`);
-        if (!resAppts.ok) return;
-        const waAppts = await resAppts.json();
-        
-        setAppointments(prevAppts => {
-          // Normalize appointments with local active niche
-          const normalizedAppts = waAppts.map(appt => ({
-            ...appt,
-            dateTime: appt.dateTime || appt.date_time || '',
-            niche: appt.niche || activeNiche
-          }));
-
-          const { merged, updated } = mergeCRMData(prevAppts, normalizedAppts);
-          if (updated) {
-            triggerToast("New Appointment booked via WhatsApp AI!", "green");
-            addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].name || 'Client'}`, 'success');
-            playAudioSfx('receive');
-            flashTabTitle("📅 New Booking!");
-          }
-          return merged;
-        });
+        if (resAppts.ok) {
+          const waAppts = await resAppts.json();
+          setAppointments(prevAppts => {
+            const normalizedAppts = waAppts.map(appt => ({
+              ...appt,
+              dateTime: appt.dateTime || appt.date_time || '',
+              niche: appt.niche || activeNiche
+            }));
+            const isMock = prevAppts.some(a => a.id === 'a-1' || a.id === 'a-2');
+            const hasNew = normalizedAppts.some(item => !prevAppts.some(existing => existing.id === item.id));
+            if (hasNew && prevAppts.length > 0 && !isMock) {
+              triggerToast("New Appointment booked via WhatsApp AI!", "green");
+              addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].name || 'Client'}`, 'success');
+              playAudioSfx('receive');
+              flashTabTitle("📅 New Booking!");
+            }
+            localStorage.setItem('frontdesk_appts', JSON.stringify(normalizedAppts));
+            return normalizedAppts;
+          });
+        }
 
         // 3. Fetch referrals from SQLite
         const resRefs = await authenticatedFetch(`${BACKEND_URL}/v1/referrals`);
         if (resRefs.ok) {
           const waRefs = await resRefs.json();
           setReferrals(prevRefs => {
-            const { merged } = mergeCRMData(prevRefs, waRefs);
-            return merged;
+            localStorage.setItem('frontdesk_referrals', JSON.stringify(waRefs));
+            return waRefs;
           });
         }
 
@@ -716,18 +704,24 @@ export default function App() {
         if (resRevs.ok) {
           const waRevs = await resRevs.json();
           setReviews(prevRevs => {
-            const { merged } = mergeCRMData(prevRevs, waRevs);
-            return merged;
+            localStorage.setItem('frontdesk_reviews', JSON.stringify(waRevs));
+            return waRevs;
           });
         }
-
       } catch (err) {
         // Fail silently when server is offline or restarting
       }
-    }, 5000); // Poll every 5 seconds
+    };
+
+    // Run once immediately on mount
+    syncCRMData();
+
+    // Poll every 5 seconds
+    const interval = setInterval(syncCRMData, 5000);
 
     return () => clearInterval(interval);
   }, [user, activeNiche]);
+
 
   // Reset/Load user-specific data when user changes (login/logout/switch)
   useEffect(() => {
