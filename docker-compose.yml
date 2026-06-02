@@ -14,5 +14,6 @@ services:
       - PHONE_NUMBER_ID=${PHONE_NUMBER_ID}
       - VERIFY_TOKEN=${VERIFY_TOKEN}
     volumes:
-      - ./database.db:/app/database.db
+      - ./data:/app/data
     restart: always
+

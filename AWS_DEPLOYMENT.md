@@ -53,11 +53,12 @@ PHONE_NUMBER_ID=1168...
 VERIFY_TOKEN=frontdesk_verify_token_secure_99
 ```
 
-3. Initialize an empty SQLite file to map inside the container:
+3. Create a data directory to store the persistent SQLite database (Docker will map this directory, making it fully permanent):
 ```bash
-touch database.db
-chmod 666 database.db
+mkdir data
+chmod 777 data
 ```
+
 
 ---
 

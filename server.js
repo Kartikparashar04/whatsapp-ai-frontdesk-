@@ -51,10 +51,18 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 let db = null;
 async function initSQLite() {
   try {
+    const dataDir = path.join(process.cwd(), 'data');
+    try {
+      await fs.mkdir(dataDir, { recursive: true });
+    } catch (err) {
+      // Ignore if exists or errors
+    }
+    
     db = await open({
-      filename: path.join(process.cwd(), 'database.db'),
+      filename: path.join(dataDir, 'database.db'),
       driver: sqlite3.Database
     });
+
     
     await db.exec(`
       CREATE TABLE IF NOT EXISTS users (
