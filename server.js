@@ -239,12 +239,24 @@ async function checkAuth(req, res, next) {
       };
     }
 
-    // Verify suspension status in SQLite DB
+    // Verify suspension status and determine owner email mapping in SQLite DB
     if (db) {
-      const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', email.toLowerCase());
+      const staffRow = await db.get('SELECT owner_email, role FROM staff WHERE LOWER(email) = ?', email.toLowerCase());
+      if (staffRow) {
+        req.user.ownerEmail = staffRow.owner_email.toLowerCase();
+        req.user.role = staffRow.role || 'staff';
+      } else {
+        req.user.ownerEmail = email.toLowerCase();
+        req.user.role = 'owner';
+      }
+
+      const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', req.user.ownerEmail);
       if (profile && profile.is_suspended === 1) {
         return res.status(403).json({ success: false, error: 'Account suspended by administrator.' });
       }
+    } else {
+      req.user.ownerEmail = email.toLowerCase();
+      req.user.role = 'owner';
     }
 
     next();
@@ -431,7 +443,7 @@ app.post('/v1/webhooks', async (req, res) => {
 app.post('/v1/business-profile', checkAuth, async (req, res) => {
   try {
     const profileData = req.body;
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     console.log('Received business profile update request for:', emailKey);
 
     if (!db) {
@@ -559,7 +571,7 @@ app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
 app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body;
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
 
     // Verify signature
     const secret = process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret_123456';
@@ -602,6 +614,21 @@ app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
 app.get('/v1/business-profile', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
+
+    if (emailKey !== ownerEmail) {
+      const profile = await getProfileByEmail(ownerEmail);
+      if (profile) {
+        return res.status(200).json({
+          ...profile,
+          role: req.user.role || 'staff',
+          email: emailKey,
+          ownerEmail: ownerEmail,
+          isStaff: true
+        });
+      }
+    }
+
     const profile = await getProfileByEmail(emailKey);
     return res.status(200).json(profile || { email: emailKey, isNew: true });
   } catch (error) {
@@ -615,7 +642,7 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
  */
 app.get('/v1/google-reviews', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const profile = await getProfileByEmail(emailKey);
     
     if (!profile) {
@@ -796,7 +823,7 @@ async function seedDefaultDataForUser(email) {
     // Initial Reviews
     const initialReviews = [
       { id: `rev-1-${Date.now()}`, customer_name: 'Anjali Sharma', rating: 5, comment: 'Wonderful whitening service! The booking process on WhatsApp was insanely fast.', status: 'completed', niche: 'dental' },
-      { id: `rev-2-${Date.now()}`, customer_name: 'Karan Malhotra', rating: 5, comment: 'Loved the haircut. Got a direct WhatsApp review reminder and referral discount.', status: 'completed', niche: 'salon' },
+      { id: `rev-2-${Date.now()}`, customer_name: 'Karan Malhotra', rating: 5, comment: 'Loved the haircut. Got a direct WhatsApp review reminder and easy booking experience.', status: 'completed', niche: 'salon' },
       { id: `rev-3-${Date.now()}`, customer_name: 'Rohan Verma', rating: 4, comment: 'Quick service, but busy schedule.', status: 'completed', niche: 'dental' },
       { id: `rev-4-${Date.now()}`, customer_name: 'Amit Patel', rating: 0, comment: '', status: 'sent', niche: 'dental' }
     ];
@@ -845,7 +872,7 @@ async function seedDefaultDataForUser(email) {
 
 app.get('/v1/leads', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     if (!db) {
       return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     }
@@ -866,7 +893,7 @@ app.get('/v1/leads', checkAuth, async (req, res) => {
  */
 app.get('/v1/appointments', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     if (!db) {
       return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     }
@@ -884,7 +911,7 @@ app.get('/v1/appointments', checkAuth, async (req, res) => {
 app.delete('/v1/appointments/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     console.log(`[CRM] Request to delete appointment ID: ${id} by owner ${emailKey}`);
 
     if (!db) {
@@ -905,7 +932,7 @@ app.delete('/v1/appointments/:id', checkAuth, async (req, res) => {
 app.delete('/v1/leads/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     console.log(`[CRM] Request to delete lead ID: ${id} by owner ${emailKey}`);
 
     if (!db) {
@@ -947,7 +974,7 @@ app.post('/v1/clear-crm', checkAuth, async (req, res) => {
 app.post('/v1/leads', checkAuth, async (req, res) => {
   try {
     const { id, name, phone, requirement, budget, location, status, source, date } = req.body;
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
 
     await db.run(`
@@ -977,7 +1004,7 @@ app.post('/v1/leads', checkAuth, async (req, res) => {
 app.post('/v1/appointments', checkAuth, async (req, res) => {
   try {
     const { id, name, phone, service, dateTime, status, reminderSent } = req.body;
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
 
     await db.run(`
@@ -1004,7 +1031,7 @@ app.post('/v1/appointments', checkAuth, async (req, res) => {
  */
 app.get('/v1/referrals', checkAuth, async (req, res) => {
   try {
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     const rows = await db.all('SELECT * FROM referrals WHERE owner_email = ?', ownerEmail);
     const mapped = rows.map(r => ({
@@ -1028,7 +1055,7 @@ app.get('/v1/referrals', checkAuth, async (req, res) => {
 app.post('/v1/referrals', checkAuth, async (req, res) => {
   try {
     const { id, referrerName, referrerPhone, code, discountValue, status } = req.body;
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
 
     await db.run(`
@@ -1054,7 +1081,7 @@ app.post('/v1/referrals', checkAuth, async (req, res) => {
  */
 app.get('/v1/reviews', checkAuth, async (req, res) => {
   try {
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     const rows = await db.all('SELECT * FROM reviews WHERE owner_email = ?', ownerEmail);
     const mapped = rows.map(r => ({
@@ -1078,7 +1105,7 @@ app.get('/v1/reviews', checkAuth, async (req, res) => {
 app.post('/v1/reviews', checkAuth, async (req, res) => {
   try {
     const { id, customerName, rating, comment, status, niche } = req.body;
-    const ownerEmail = req.user.email.toLowerCase();
+    const ownerEmail = req.user.ownerEmail;
     if (!db) return res.status(500).json({ success: false, error: 'Database is not initialized.' });
 
     await db.run(`
@@ -1105,7 +1132,7 @@ app.post('/v1/reviews', checkAuth, async (req, res) => {
 app.post('/v1/test-agent-reply', checkAuth, async (req, res) => {
   try {
     const { message, customerPhone, customerName } = req.body;
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
 
     // Fetch profile
     const profile = await getProfileByEmail(emailKey);
@@ -1493,7 +1520,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.post('/v1/knowledge-base/upload', checkAuth, upload.single('file'), async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file uploaded.' });
     }
@@ -1529,7 +1556,7 @@ app.post('/v1/knowledge-base/upload', checkAuth, upload.single('file'), async (r
 
 app.get('/v1/knowledge-base', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const rows = await db.all('SELECT id, file_name, file_type, created_at FROM knowledge_base WHERE owner_email = ?', emailKey);
     return res.status(200).json(rows);
   } catch (err) {
@@ -1539,7 +1566,7 @@ app.get('/v1/knowledge-base', checkAuth, async (req, res) => {
 
 app.delete('/v1/knowledge-base/:id', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     await db.run('DELETE FROM knowledge_base WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     return res.status(200).json({ success: true });
   } catch (err) {
@@ -1549,7 +1576,7 @@ app.delete('/v1/knowledge-base/:id', checkAuth, async (req, res) => {
 
 app.post('/v1/faqs', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const { question, answer } = req.body;
     const id = 'faq-' + Date.now();
     await db.run(
@@ -1574,7 +1601,7 @@ app.get('/v1/faqs', checkAuth, async (req, res) => {
 
 app.delete('/v1/faqs/:id', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     await db.run('DELETE FROM faqs WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     return res.status(200).json({ success: true });
   } catch (err) {
@@ -1584,7 +1611,7 @@ app.delete('/v1/faqs/:id', checkAuth, async (req, res) => {
 
 app.get('/v1/conversations', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const rows = await db.all('SELECT * FROM conversations WHERE owner_email = ? ORDER BY updated_at DESC', emailKey);
     return res.status(200).json(rows);
   } catch (err) {
@@ -1594,7 +1621,7 @@ app.get('/v1/conversations', checkAuth, async (req, res) => {
 
 app.get('/v1/conversations/:id/messages', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     if (!conv) {
       return res.status(404).json({ success: false, error: 'Conversation not found.' });
@@ -1608,7 +1635,7 @@ app.get('/v1/conversations/:id/messages', checkAuth, async (req, res) => {
 
 app.post('/v1/conversations/:id/reply', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const { text } = req.body;
     const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     if (!conv) {
@@ -1637,7 +1664,7 @@ app.post('/v1/conversations/:id/reply', checkAuth, async (req, res) => {
 
 app.post('/v1/conversations/:id/status', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const { status } = req.body; // 'ai' or 'human'
     const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     if (!conv) {
@@ -1655,7 +1682,7 @@ app.post('/v1/conversations/:id/status', checkAuth, async (req, res) => {
 
 app.get('/v1/staff', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    const emailKey = req.user.ownerEmail;
     const rows = await db.all('SELECT * FROM staff WHERE owner_email = ?', emailKey);
     return res.status(200).json(rows);
   } catch (err) {
@@ -1665,7 +1692,10 @@ app.get('/v1/staff', checkAuth, async (req, res) => {
 
 app.post('/v1/staff', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Business owner only.' });
+    }
+    const emailKey = req.user.ownerEmail;
     const { name, email, role } = req.body;
     const id = 'staff-' + Date.now();
     await db.run(
@@ -1680,7 +1710,10 @@ app.post('/v1/staff', checkAuth, async (req, res) => {
 
 app.delete('/v1/staff/:id', checkAuth, async (req, res) => {
   try {
-    const emailKey = req.user.email.toLowerCase();
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Business owner only.' });
+    }
+    const emailKey = req.user.ownerEmail;
     await db.run('DELETE FROM staff WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
     return res.status(200).json({ success: true });
   } catch (err) {

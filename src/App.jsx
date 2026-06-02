@@ -38,7 +38,6 @@ import {
 import { 
   INITIAL_LEADS, 
   INITIAL_APPOINTMENTS, 
-  INITIAL_REFERRALS, 
   INITIAL_REVIEWS, 
   NICHE_CONFIGS 
 } from './mockData';
@@ -225,7 +224,7 @@ Your personality is ${aiPersona} (always polite, helpful, and concise).
 Your main tasks are:
 1. Capture client full name, WhatsApp number, requested service, and location.
 2. Confirm slots and schedule appointments.
-3. Share the Google Review link: ${nicheConfigs[niche].reviewUrl} and referral codes to drive viral loyalty loops.`
+3. Share the Google Review link: ${nicheConfigs[niche].reviewUrl} to invite feedback.`
       }
     };
     
@@ -474,10 +473,7 @@ export default function App() {
     return local ? JSON.parse(local) : [];
   });
   
-  const [referrals, setReferrals] = useState(() => {
-    const local = localStorage.getItem('frontdesk_referrals');
-    return local ? JSON.parse(local) : [];
-  });
+  const [referrals, setReferrals] = useState([]);
   
   const [reviews, setReviews] = useState(() => {
     const local = localStorage.getItem('frontdesk_reviews');
@@ -543,7 +539,7 @@ export default function App() {
   const [activities, setActivities] = useState([
     { id: 1, text: 'Lead Anjali Sharma converted from WhatsApp', time: '10 mins ago', type: 'success' },
     { id: 2, text: 'Google Review Request clicked by Rohan Verma', time: '1 hour ago', type: 'info' },
-    { id: 3, text: 'Referral coupon REF-SMILE-991 redeemed by client', time: '3 hours ago', type: 'reward' },
+    { id: 3, text: 'Google review left by Karan Malhotra', time: '3 hours ago', type: 'reward' },
     { id: 4, text: 'AI assistant responded to enquiry for hair spa', time: '5 hours ago', type: 'ai' }
   ]);
 
@@ -689,15 +685,7 @@ export default function App() {
           });
         }
 
-        // 3. Fetch referrals from SQLite
-        const resRefs = await authenticatedFetch(`${BACKEND_URL}/v1/referrals`);
-        if (resRefs.ok) {
-          const waRefs = await resRefs.json();
-          setReferrals(prevRefs => {
-            localStorage.setItem('frontdesk_referrals', JSON.stringify(waRefs));
-            return waRefs;
-          });
-        }
+        // 3. Referrals removed from SQLite
 
         // 4. Fetch reviews from SQLite
         const resRevs = await authenticatedFetch(`${BACKEND_URL}/v1/reviews`);
@@ -734,8 +722,7 @@ export default function App() {
       const localAppts = localStorage.getItem(`frontdesk_appts_${emailKey}`);
       setAppointments(localAppts ? JSON.parse(localAppts) : []);
 
-      const localReferrals = localStorage.getItem(`frontdesk_referrals_${emailKey}`);
-      setReferrals(localReferrals ? JSON.parse(localReferrals) : []);
+      setReferrals([]);
 
       const localReviews = localStorage.getItem(`frontdesk_reviews_${emailKey}`);
       setReviews(localReviews ? JSON.parse(localReviews) : []);
@@ -752,7 +739,6 @@ export default function App() {
       // Clear/Reset to default states when logged out
       setLeads([]);
       setAppointments([]);
-      setReferrals([]);
       setReviews([]);
       setNicheConfigs(NICHE_CONFIGS);
       setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
@@ -793,11 +779,7 @@ export default function App() {
     }
   }, [appointments, user]);
 
-  useEffect(() => {
-    if (user && user.email) {
-      localStorage.setItem(`frontdesk_referrals_${user.email.toLowerCase()}`, JSON.stringify(referrals));
-    }
-  }, [referrals, user]);
+  // Referrals local storage effect removed
 
   useEffect(() => {
     if (user && user.email) {
@@ -1974,8 +1956,7 @@ export default function App() {
 
           case 'booking':
             botResponse = `🎉 Confirmed! Your slot for ${updatedTempLead.requirement} is registered. We've sent a calendar card to your phone.\n\n` + 
-              `Here is a Google Review request link from your last check-up: ${currentConfig.reviewUrl} \n\n` + 
-              `Share this referral code with friends so both of you get rewards: REF-${activeNiche.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+              `Here is a Google Review request link from your last check-up: ${currentConfig.reviewUrl}`;
             nextStep = 'done';
 
             const newAppt = {
@@ -3430,56 +3411,60 @@ export default function App() {
                 <span>Appointments</span>
               </button>
             </li>
-            <li>
-              <button 
-                onClick={() => { setActiveTab('automation'); setIsMobileMenuOpen(false); }}
-                className={`menu-item ${activeTab === 'automation' ? 'active' : ''}`}
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-              >
-                <Settings size={18} />
-                <span>Automation Hub</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setActiveTab('knowledge'); setIsMobileMenuOpen(false); }}
-                className={`menu-item ${activeTab === 'knowledge' ? 'active' : ''}`}
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-              >
-                <Database size={18} style={{ color: 'var(--accent-purple)' }} />
-                <span>AI Knowledge Base</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setActiveTab('rewards'); setIsMobileMenuOpen(false); }}
-                className={`menu-item ${activeTab === 'rewards' ? 'active' : ''}`}
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-              >
-                <Share2 size={18} />
-                <span>Reviews & Referrals</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setActiveTab('campaigns'); setIsMobileMenuOpen(false); }}
-                className={`menu-item ${activeTab === 'campaigns' ? 'active' : ''}`}
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-              >
-                <Sparkles size={18} style={{ color: 'var(--accent-purple)' }} />
-                <span>Marketing Broadcast</span>
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
-                className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
-                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-              >
-                <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
-                <span>Billing & Subscription</span>
-              </button>
-            </li>
+            {user.role !== 'staff' && (
+              <>
+                <li>
+                  <button 
+                    onClick={() => { setActiveTab('automation'); setIsMobileMenuOpen(false); }}
+                    className={`menu-item ${activeTab === 'automation' ? 'active' : ''}`}
+                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                  >
+                    <Settings size={18} />
+                    <span>Automation Hub</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => { setActiveTab('knowledge'); setIsMobileMenuOpen(false); }}
+                    className={`menu-item ${activeTab === 'knowledge' ? 'active' : ''}`}
+                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                  >
+                    <Database size={18} style={{ color: 'var(--accent-purple)' }} />
+                    <span>AI Knowledge Base</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => { setActiveTab('rewards'); setIsMobileMenuOpen(false); }}
+                    className={`menu-item ${activeTab === 'rewards' ? 'active' : ''}`}
+                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                  >
+                    <Star size={18} style={{ color: 'var(--accent-yellow)' }} />
+                    <span>Google Reviews</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => { setActiveTab('campaigns'); setIsMobileMenuOpen(false); }}
+                    className={`menu-item ${activeTab === 'campaigns' ? 'active' : ''}`}
+                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                  >
+                    <Sparkles size={18} style={{ color: 'var(--accent-purple)' }} />
+                    <span>Marketing Broadcast</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
+                    className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
+                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                  >
+                    <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
+                    <span>Billing & Subscription</span>
+                  </button>
+                </li>
+              </>
+            )}
             <li>
               <button 
                 onClick={() => { setActiveTab('profile'); setIsMobileMenuOpen(false); }}
@@ -3750,9 +3735,9 @@ export default function App() {
             <div className="glass-panel" style={{ display: 'flex', gap: '20px', padding: '24px', alignItems: 'center', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(6, 182, 212, 0.05) 100%)' }}>
               <div style={{ fontSize: '2.5rem' }}>📢</div>
               <div>
-                <h4 style={{ fontSize: '1.1rem', marginBottom: '4px', fontWeight: 'bold' }}>Viral Referrals Loop Active</h4>
+                <h4 style={{ fontSize: '1.1rem', marginBottom: '4px', fontWeight: 'bold' }}>Google Reviews Sync Active</h4>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                  FrontDesk AI automatically appends discount coupons (e.g. 10% Off or ₹500 Coupon) to confirmed appointment tickets. Give business owners and customers referral links to easily drive local acquisition.
+                  FrontDesk AI automatically prompts customers to leave a review after their appointments, helping to improve your clinic or salon ranking online.
                 </p>
               </div>
               <button 
@@ -3760,7 +3745,7 @@ export default function App() {
                 className="btn-primary" 
                 style={{ marginLeft: 'auto', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <span>Check Rewards</span>
+                <span>Check Reviews</span>
                 <ArrowUpRight size={16} />
               </button>
             </div>
@@ -4442,58 +4427,13 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 5: Rewards */}
+        {/* Tab 5: Reviews */}
         {activeTab === 'rewards' && (
           <div className="tab-content" style={{ position: 'relative' }}>
-            {!hasActivePlan && renderLockOverlay('Reviews & Viral Referrals')}
+            {!hasActivePlan && renderLockOverlay('Google Reviews Sync')}
             
-            <div className="dashboard-details-grid">
+            <div className="dashboard-details-grid" style={{ gridTemplateColumns: '1fr' }}>
               
-              {/* Referrals */}
-              <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                <div className="panel-header">
-                  <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Share2 size={18} style={{ color: 'var(--accent-blue)' }} />
-                    Viral Referral Codes
-                  </h3>
-                  <span className="badge badge-converted">Engine Active</span>
-                </div>
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Referrer</th>
-                        <th>Coupon Code</th>
-                        <th>Reward Value</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {referrals.map(ref => (
-                        <tr key={ref.id}>
-                          <td>
-                            <div style={{ fontWeight: '600' }}>{ref.referrerName}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{ref.referrerPhone}</div>
-                          </td>
-                          <td>
-                            <span className="referral-share-code">{ref.code}</span>
-                          </td>
-                          <td style={{ fontWeight: '500', color: 'var(--accent-green)' }}>{ref.discountValue}</td>
-                          <td>
-                            <span className={`badge ${
-                              ref.status === 'redeemed' ? 'badge-converted' : 
-                              ref.status === 'sent' ? 'badge-follow' : 'badge-new'
-                            }`}>
-                              {ref.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
               {/* Reviews */}
               <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
                 <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4507,7 +4447,7 @@ export default function App() {
                   </span>
                 </div>
                 <div className="panel-body">
-                  <div className="activity-list" style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                  <div className="activity-list" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                     {googleStats.reviews && googleStats.reviews.length > 0 ? (
                       googleStats.reviews.map((rev, index) => (
                         <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
@@ -4724,7 +4664,7 @@ export default function App() {
                   
                   <div>
                     <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-primary)', marginBottom: '8px' }}>Pro Tier</h4>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Advanced scaling solutions for frontdesk automation and referral growth.</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Advanced scaling solutions for frontdesk automation and review growth.</p>
                     
                     <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '24px' }}>
                       <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹2,499</span>
@@ -4742,7 +4682,7 @@ export default function App() {
                       </li>
                       <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
-                        Referral code & Reward engine config
+                        Google Reviews auto-invitation engine
                       </li>
                       <li style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <CheckCircle2 size={16} style={{ color: 'var(--accent-yellow)' }} />
@@ -5043,23 +4983,22 @@ export default function App() {
 
               {/* Right panel - edit form */}
               <div className="glass-panel" style={{ padding: '24px' }}>
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
-                  <UserIcon size={18} style={{ color: 'var(--accent-blue)' }} />
-                  Business Profile & Coordinates
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Settings size={18} style={{ color: 'var(--accent-purple)' }} />
+                  Business & Profile Settings
                 </h3>
-
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   const form = e.target;
                   
                   const updatedName = form.profileName.value;
-                  const updatedBusinessName = form.businessName.value;
-                  const updatedWebsite = form.businessWebsite.value;
-                  const updatedPhone = form.businessPhone.value;
-                  const updatedAddress = form.businessAddress.value;
-                  const updatedTone = form.aiPersona.value;
-                  const updatedGoogleApiKey = form.googleApiKey.value;
-                  const updatedGooglePlaceId = form.googlePlaceId.value;
+                  const updatedBusinessName = form.businessName ? form.businessName.value : (user.businessName || '');
+                  const updatedWebsite = form.businessWebsite ? form.businessWebsite.value : (user.businessWebsite || '');
+                  const updatedPhone = form.businessPhone ? form.businessPhone.value : (user.businessPhone || '');
+                  const updatedAddress = form.businessAddress ? form.businessAddress.value : (user.businessAddress || '');
+                  const updatedTone = form.aiPersona ? form.aiPersona.value : (user.aiPersona || 'Friendly');
+                  const updatedGoogleApiKey = form.googleApiKey ? form.googleApiKey.value : (user.googleApiKey || '');
+                  const updatedGooglePlaceId = form.googlePlaceId ? form.googlePlaceId.value : (user.googlePlaceId || '');
 
                   const updatedUser = {
                     ...user,
@@ -5097,7 +5036,7 @@ Your personality is ${updatedTone} (always polite, helpful, and concise).
 Your main tasks are:
 1. Capture client full name, WhatsApp number, requested service, and location.
 2. Confirm slots and schedule appointments.
-3. Share the Google Review link: ${nicheConfigs[activeNiche].reviewUrl} and referral codes to drive viral loyalty loops.`
+3. Share the Google Review link: ${nicheConfigs[activeNiche].reviewUrl} to invite feedback.`
                       }
                     };
                     setNicheConfigs(updatedConfigs);
@@ -5142,100 +5081,104 @@ Your main tasks are:
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="form-group">
-                      <label>Business Public Name</label>
-                      <input 
-                        type="text" 
-                        name="businessName" 
-                        defaultValue={user.businessName || currentConfig.businessName} 
-                        required 
-                      />
-                    </div>
+                  {user.role === 'owner' && (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label>Business Public Name</label>
+                          <input 
+                            type="text" 
+                            name="businessName" 
+                            defaultValue={user.businessName || currentConfig.businessName} 
+                            required 
+                          />
+                        </div>
 
-                    <div className="form-group">
-                      <label>Business Category (Niche)</label>
-                      <input 
-                        type="text" 
-                        defaultValue={activeNiche === 'dental' ? '🦷 Dental Clinic' : '💇‍♀️ Hair Salon & Spa'} 
-                        disabled 
-                        style={{ background: '#f1f3f4', cursor: 'not-allowed' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div className="form-group">
-                      <label>Business Website</label>
-                      <input 
-                        type="url" 
-                        name="businessWebsite" 
-                        defaultValue={user.businessWebsite || ''} 
-                        placeholder="e.g. https://www.website.com" 
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Business Phone Number</label>
-                      <input 
-                        type="tel" 
-                        name="businessPhone" 
-                        defaultValue={user.businessPhone || '+91 99000 88000'} 
-                        required 
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Store / Clinic Full Address</label>
-                    <input 
-                      type="text" 
-                      name="businessAddress" 
-                      defaultValue={user.businessAddress || '100 Feet Road, Indiranagar, Bangalore'} 
-                      required 
-                    />
-                  </div>
-
-                  <div style={{ marginTop: '20px', borderTop: '1px dashed var(--border-light)', paddingTop: '16px', marginBottom: '16px' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Star size={14} style={{ color: 'var(--accent-yellow)' }} />
-                      Google Place Live Reviews Setup
-                    </h4>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div className="form-group">
-                        <label>Google Places API Key</label>
-                        <input 
-                          type="password" 
-                          name="googleApiKey" 
-                          defaultValue={user.googleApiKey || ''} 
-                          placeholder="e.g. AIzaSy..." 
-                        />
+                        <div className="form-group">
+                          <label>Business Category (Niche)</label>
+                          <input 
+                            type="text" 
+                            defaultValue={activeNiche === 'dental' ? '🦷 Dental Clinic' : '💇‍♀️ Hair Salon & Spa'} 
+                            disabled 
+                            style={{ background: '#f1f3f4', cursor: 'not-allowed' }} 
+                          />
+                        </div>
                       </div>
-                      
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="form-group">
+                          <label>Business Website</label>
+                          <input 
+                            type="url" 
+                            name="businessWebsite" 
+                            defaultValue={user.businessWebsite || ''} 
+                            placeholder="e.g. https://www.website.com" 
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label>Business Phone Number</label>
+                          <input 
+                            type="tel" 
+                            name="businessPhone" 
+                            defaultValue={user.businessPhone || '+91 99000 88000'} 
+                            required 
+                          />
+                        </div>
+                      </div>
+
                       <div className="form-group">
-                        <label>Google Place ID</label>
+                        <label>Store / Clinic Full Address</label>
                         <input 
                           type="text" 
-                          name="googlePlaceId" 
-                          defaultValue={user.googlePlaceId || ''} 
-                          placeholder="e.g. ChIJN1t_t..." 
+                          name="businessAddress" 
+                          defaultValue={user.businessAddress || '100 Feet Road, Indiranagar, Bangalore'} 
+                          required 
                         />
                       </div>
-                    </div>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      If Place ID is left blank, the system will fall back to beautiful simulated mock reviews.
-                    </p>
-                  </div>
 
-                  <div className="form-group">
-                    <label>AI Assistant Tone</label>
-                    <select name="aiPersona" defaultValue={user.aiPersona || 'Friendly'}>
-                      <option value="Professional">👔 Professional / Formal</option>
-                      <option value="Friendly">🌸 Warm & Friendly</option>
-                      <option value="Salesy">⚡ Energetic & Sales-focused</option>
-                    </select>
-                  </div>
+                      <div style={{ marginTop: '20px', borderTop: '1px dashed var(--border-light)', paddingTop: '16px', marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Star size={14} style={{ color: 'var(--accent-yellow)' }} />
+                          Google Place Live Reviews Setup
+                        </h4>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                          <div className="form-group">
+                            <label>Google Places API Key</label>
+                            <input 
+                              type="password" 
+                              name="googleApiKey" 
+                              defaultValue={user.googleApiKey || ''} 
+                              placeholder="e.g. AIzaSy..." 
+                            />
+                          </div>
+                          
+                          <div className="form-group">
+                            <label>Google Place ID</label>
+                            <input 
+                              type="text" 
+                              name="googlePlaceId" 
+                              defaultValue={user.googlePlaceId || ''} 
+                              placeholder="e.g. ChIJN1t_t..." 
+                            />
+                          </div>
+                        </div>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          If Place ID is left blank, the system will fall back to beautiful simulated mock reviews.
+                        </p>
+                      </div>
+
+                      <div className="form-group">
+                        <label>AI Assistant Tone</label>
+                        <select name="aiPersona" defaultValue={user.aiPersona || 'Friendly'}>
+                          <option value="Professional">👔 Professional / Formal</option>
+                          <option value="Friendly">🌸 Warm & Friendly</option>
+                          <option value="Salesy">⚡ Energetic & Sales-focused</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
 
                   <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '12px' }}>
                     Save Profile Details
@@ -5245,93 +5188,95 @@ Your main tasks are:
             </div>
             
             {/* Team Members Section */}
-            <div className="glass-panel" style={{ padding: '24px', marginTop: '24px', borderRadius: '12px' }}>
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
-                <Users size={18} style={{ color: 'var(--accent-blue)' }} />
-                Manage Team Members (Staff Roles)
-              </h3>
-              
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                try {
-                  const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: newStaffName, email: newStaffEmail, role: newStaffRole })
-                  });
-                  if (res.ok) {
-                    triggerToast("Team member added successfully!", "green");
-                    setNewStaffName('');
-                    setNewStaffEmail('');
-                    fetchStaff();
+            {user.role === 'owner' && (
+              <div className="glass-panel" style={{ padding: '24px', marginTop: '24px', borderRadius: '12px' }}>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                  <Users size={18} style={{ color: 'var(--accent-blue)' }} />
+                  Manage Team Members (Staff Roles)
+                </h3>
+                
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: newStaffName, email: newStaffEmail, role: newStaffRole })
+                    });
+                    if (res.ok) {
+                      triggerToast("Team member added successfully!", "green");
+                      setNewStaffName('');
+                      setNewStaffEmail('');
+                      fetchStaff();
+                    }
+                  } catch (err) {
+                    triggerToast("Error adding team member.", "red");
                   }
-                } catch (err) {
-                  triggerToast("Error adding team member.", "red");
-                }
-              }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end', marginBottom: '20px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Staff Name</label>
-                  <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} required placeholder="e.g. John Doe" />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Staff Email</label>
-                  <input type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} required placeholder="e.g. john@business.com" />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Role</label>
-                  <select value={newStaffRole} onChange={e => setNewStaffRole(e.target.value)}>
-                    <option value="staff">Staff Member (Manual Replies)</option>
-                    <option value="admin">Admin Helper (Full Control)</option>
-                  </select>
-                </div>
-                <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add Member</button>
-              </form>
+                }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end', marginBottom: '20px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label>Staff Name</label>
+                    <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} required placeholder="e.g. John Doe" />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label>Staff Email</label>
+                    <input type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} required placeholder="e.g. john@business.com" />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label>Role</label>
+                    <select value={newStaffRole} onChange={e => setNewStaffRole(e.target.value)}>
+                      <option value="staff">Staff Member (Manual Replies)</option>
+                      <option value="admin">Admin Helper (Full Control)</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add Member</button>
+                </form>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>NAME</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>EMAIL</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ROLE</th>
-                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staffList.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>No team members added yet.</td>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>NAME</th>
+                        <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>EMAIL</th>
+                        <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ROLE</th>
+                        <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ACTIONS</th>
                       </tr>
-                    ) : (
-                      staffList.map(member => (
-                        <tr key={member.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                          <td style={{ padding: '12px 8px', fontWeight: '600' }}>{member.name}</td>
-                          <td style={{ padding: '12px 8px' }}>{member.email}</td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <span className={`badge ${member.role === 'admin' ? 'badge-new' : 'badge-followed_up'}`}>
-                              {member.role === 'admin' ? 'Admin' : 'Staff'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <button onClick={async () => {
-                              try {
-                                const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff/${member.id}`, { method: 'DELETE' });
-                                if (res.ok) {
-                                  triggerToast("Member removed.", "green");
-                                  fetchStaff();
-                                }
-                              } catch (err) {
-                                triggerToast("Error removing member.", "red");
-                              }
-                            }} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}>Remove</button>
-                          </td>
+                    </thead>
+                    <tbody>
+                      {staffList.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>No team members added yet.</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        staffList.map(member => (
+                          <tr key={member.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                            <td style={{ padding: '12px 8px', fontWeight: '600' }}>{member.name}</td>
+                            <td style={{ padding: '12px 8px' }}>{member.email}</td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <span className={`badge ${member.role === 'admin' ? 'badge-new' : 'badge-followed_up'}`}>
+                                {member.role === 'admin' ? 'Admin' : 'Staff'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <button onClick={async () => {
+                                try {
+                                  const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff/${member.id}`, { method: 'DELETE' });
+                                  if (res.ok) {
+                                    triggerToast("Member removed.", "green");
+                                    fetchStaff();
+                                  }
+                                } catch (err) {
+                                  triggerToast("Error removing member.", "red");
+                                }
+                              }} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}>Remove</button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

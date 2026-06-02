@@ -116,38 +116,7 @@ export const INITIAL_APPOINTMENTS = [
   }
 ];
 
-export const INITIAL_REFERRALS = [
-  {
-    id: 'r-1',
-    code: 'REF-SMILE-991',
-    referrerName: 'Anjali Sharma',
-    referrerPhone: '+91 98765 43210',
-    referredPhone: '+91 90000 11111',
-    status: 'redeemed',
-    discountValue: '10% Off',
-    rewardStatus: 'Credited (1 Free Dental Clean)'
-  },
-  {
-    id: 'r-2',
-    code: 'REF-GLOW-724',
-    referrerName: 'Karan Malhotra',
-    referrerPhone: '+91 91234 56789',
-    referredPhone: '+91 94444 55555',
-    status: 'sent',
-    discountValue: '₹500 Coupon',
-    rewardStatus: 'Pending conversion'
-  },
-  {
-    id: 'r-3',
-    code: 'REF-SMILE-442',
-    referrerName: 'Rahul Goel',
-    referrerPhone: '+91 87654 32109',
-    referredPhone: '',
-    status: 'generated',
-    discountValue: '10% Off',
-    rewardStatus: 'Waiting for share'
-  }
-];
+export const INITIAL_REFERRALS = [];
 
 export const INITIAL_REVIEWS = [
   {
@@ -163,7 +132,7 @@ export const INITIAL_REVIEWS = [
     id: 'rev-2',
     customerName: 'Karan Malhotra',
     rating: 5,
-    comment: 'Loved the haircut. Got a direct WhatsApp review reminder and referral discount.',
+    comment: 'Loved the haircut. Got a direct WhatsApp review reminder and easy booking experience.',
     status: 'completed',
     sentDate: '2026-05-28T19:30:00Z',
     niche: 'salon'
@@ -204,7 +173,7 @@ export const NICHE_CONFIGS = {
       { name: 'Root Canal Treatment', duration: '60 mins', price: '₹6,500' },
       { name: 'Orthodontics (Braces/Aligners) Consultation', duration: '30 mins', price: '₹1,000' }
     ],
-    systemPrompt: 'You are a warm, helpful virtual assistant for Zenith Dental Clinic. Your job is to answer questions politely, collect contact info (name, requirement, budget, location) to build a lead profile, help them select a dental service, book an appointment, and offer a referral coupon (10% discount) when they share with friends.',
+    systemPrompt: 'You are a warm, helpful virtual assistant for Zenith Dental Clinic. Your job is to answer questions politely, collect contact info (name, requirement, budget, location) to build a lead profile, help them select a dental service, and book an appointment.',
     mockAnswers: {
       prices: 'Our prices are very affordable! Cleaning is ₹1,500, Whitening is ₹4,500, and Root Canal is around ₹6,500 depending on the case. What treatment are you considering?',
       location: 'We are located at 12th Main Road, Indiranagar, Bangalore. Just 2 mins walk from the metro station! Where are you located?',
@@ -226,7 +195,7 @@ export const NICHE_CONFIGS = {
       { name: 'Premium Pedicure & Manicure', duration: '60 mins', price: '₹1,800' },
       { name: 'Bridal Makeup Consultation', duration: '45 mins', price: '₹3,000' }
     ],
-    systemPrompt: 'You are an upbeat, friendly styling assistant for Glow & Style Salon & Spa. Help clients explore services, capture their budget and requirements, book styling appointments, and dispatch styling referral coupons (₹500 off) for their friends.',
+    systemPrompt: 'You are an upbeat, friendly styling assistant for Glow & Style Salon & Spa. Help clients explore services, capture their budget and requirements, and book styling appointments.',
     mockAnswers: {
       prices: 'Our haircuts start at ₹800. Balayage is ₹7,500, Keratin is ₹5,000, and Mani-Pedi is ₹1,800. What service can we prep for you today?',
       location: 'We are in HSR Layout, Sector 6, Bangalore. Right next to the Central Park. Where are you heading from?',
