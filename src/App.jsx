@@ -632,7 +632,7 @@ export default function App() {
   // Auto-lock active niche based on role
   useEffect(() => {
     if (user) {
-      if (user.role === 'owner') {
+      if (user.role !== 'staff') {
         setActiveNiche(user.niche);
       }
     }
@@ -2824,7 +2824,7 @@ export default function App() {
   };
 
   // SCREEN RENDER 1.5: ONBOARDING WIZARD
-  if (user && !user.isOnboarded && user.role === 'owner') {
+  if (user && !user.isOnboarded && user.role !== 'staff') {
     return (
       <OnboardingWizard 
         user={user} 
@@ -5024,7 +5024,7 @@ export default function App() {
                   }));
 
                   // Update config as well
-                  if (user.role === 'owner') {
+                  if (user.role !== 'staff') {
                     const updatedConfigs = {
                       ...nicheConfigs,
                       [activeNiche]: {
@@ -5081,7 +5081,7 @@ Your main tasks are:
                     </div>
                   </div>
 
-                  {user.role === 'owner' && (
+                  {user.role !== 'staff' && (
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div className="form-group">
@@ -5188,7 +5188,7 @@ Your main tasks are:
             </div>
             
             {/* Team Members Section */}
-            {user.role === 'owner' && (
+            {user.role !== 'staff' && (
               <div className="glass-panel" style={{ padding: '24px', marginTop: '24px', borderRadius: '12px' }}>
                 <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
                   <Users size={18} style={{ color: 'var(--accent-blue)' }} />

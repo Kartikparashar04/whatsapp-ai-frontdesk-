@@ -630,7 +630,13 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
     }
 
     const profile = await getProfileByEmail(emailKey);
-    return res.status(200).json(profile || { email: emailKey, isNew: true });
+    if (profile) {
+      return res.status(200).json({
+        ...profile,
+        role: 'owner'
+      });
+    }
+    return res.status(200).json({ email: emailKey, isNew: true, role: 'owner' });
   } catch (error) {
     console.error('Error fetching business profile:', error.message);
     return res.status(500).json({ success: false, error: error.message });
