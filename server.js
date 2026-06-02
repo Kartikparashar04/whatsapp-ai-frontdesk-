@@ -10,6 +10,13 @@ import { open } from 'sqlite';
 import admin from 'firebase-admin';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import multer from 'multer';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
 
 // Load environment variables
 dotenv.config();
@@ -102,7 +109,8 @@ async function initSQLite() {
         trial_start TEXT DEFAULT NULL,
         subscription_plan TEXT DEFAULT NULL,
         google_api_key TEXT DEFAULT NULL,
-        google_place_id TEXT DEFAULT NULL
+        google_place_id TEXT DEFAULT NULL,
+        is_suspended INTEGER DEFAULT 0
       );
       
       CREATE TABLE IF NOT EXISTS referrals (
@@ -124,6 +132,50 @@ async function initSQLite() {
         status TEXT,
         niche TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS staff (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        name TEXT,
+        email TEXT,
+        role TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        customer_phone TEXT,
+        customer_name TEXT,
+        status TEXT DEFAULT 'ai',
+        last_message TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT,
+        sender TEXT,
+        message_text TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS knowledge_base (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        file_name TEXT,
+        file_type TEXT,
+        file_content TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS faqs (
+        id TEXT PRIMARY KEY,
+        owner_email TEXT,
+        question TEXT,
+        answer TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
     
     // Add columns if they don't exist
@@ -142,8 +194,11 @@ async function initSQLite() {
     try {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN google_place_id TEXT DEFAULT NULL`);
     } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN is_suspended INTEGER DEFAULT 0`);
+    } catch (err) {}
     
-    console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews) initialized successfully!');
+    console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews, staff, conversations, messages, knowledge_base, faqs) initialized successfully!');
   } catch (error) {
     console.error('Failed to initialize SQLite Database:', error.message);
   }
@@ -159,20 +214,31 @@ async function checkAuth(req, res, next) {
     }
 
     const token = authHeader.split('Bearer ')[1];
+    let email = 'kartikparashar15@gmail.com';
     
     // Demo Mode check (mock validation or non-JWT fallback)
     if (!process.env.VITE_FIREBASE_API_KEY || 
         process.env.VITE_FIREBASE_API_KEY.includes("ChangeMe") || 
         token.split('.').length !== 3) {
-      req.user = { email: token.includes('@') ? token : 'kartikparashar15@gmail.com' };
-      return next();
+      email = token.includes('@') ? token : 'kartikparashar15@gmail.com';
+      req.user = { email };
+    } else {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      email = decodedToken.email || `${decodedToken.uid}@frontdesk.com`;
+      req.user = {
+        uid: decodedToken.uid,
+        email
+      };
     }
 
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email || `${decodedToken.uid}@frontdesk.com`
-    };
+    // Verify suspension status in SQLite DB
+    if (db) {
+      const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', email.toLowerCase());
+      if (profile && profile.is_suspended === 1) {
+        return res.status(403).json({ success: false, error: 'Account suspended by administrator.' });
+      }
+    }
+
     next();
   } catch (error) {
     console.error('Authentication Error:', error.message);
@@ -1049,31 +1115,58 @@ app.post('/v1/test-agent-reply', checkAuth, async (req, res) => {
       return res.status(200).json({
         reply: "Gemini AI is not configured. Please set your GEMINI_API_KEY in the environment.",
         isBooking: false,
-        isLead: false
+        isLead: false,
+        isHandoff: false
       });
     }
 
+    const targetPhone = customerPhone || '9999999999';
+    const targetName = customerName || 'Test Customer';
+
+    // Log incoming customer message
+    await logMessageToConversation(emailKey, targetPhone, targetName, 'customer', message);
+
+    // Verify Handoff State
+    if (db) {
+      const conv = await db.get('SELECT status FROM conversations WHERE customer_phone = ? AND owner_email = ?', targetPhone, emailKey);
+      if (conv && conv.status === 'human') {
+        const autoReply = "Human takeover is active. A staff member will respond to you shortly.";
+        await logMessageToConversation(emailKey, targetPhone, targetName, 'bot', autoReply, 'human');
+        return res.status(200).json({
+          reply: autoReply,
+          isBooking: false,
+          isLead: false,
+          isHandoff: true
+        });
+      }
+    }
+
+    const groundingText = await getGroundingContext(emailKey, message);
     const today = new Date();
     const categoryLabel = activeProfile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
 
     const combinedPrompt = `You are a front desk database parser and conversational agent.
 Analyze this WhatsApp client query: "${message}"
-From sender: Name: "${customerName || 'Test Customer'}", Phone: "${customerPhone || '9999999999'}".
+From sender: Name: "${targetName}", Phone: "${targetPhone}".
 Current date is: ${today.toDateString()} (Day: ${today.toLocaleDateString('en-US', { weekday: 'long' })}).
 
 You are the AI Front Desk for "${activeProfile.businessName}", a premium ${categoryLabel} located at "${activeProfile.businessAddress}".
 Business contact: Phone: ${activeProfile.businessPhone}, Website: ${activeProfile.businessWebsite}.
 Your personality: ${activeProfile.aiPersona} (always polite, helpful, and concise).
 
+${groundingText}
+
 Tasks:
 1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
 2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
+3. If the client asks to speak to a human/staff/manager, or if you cannot answer their query from the provided instructions/niche, set "isHandoff" to true.
 
 You MUST reply ONLY with a valid JSON block matching this exact structure, do not wrap it in anything else, do not include markdown blocks:
 {
   "reply": "conversational reply under 3 sentences to send to WhatsApp",
   "isBooking": true/false,
   "isLead": true/false,
+  "isHandoff": true/false,
   "customerName": "extracted customer name or fallback",
   "service": "extracted service name (e.g. Teeth Cleaning, Haircut) or null",
   "dateTime": "computed YYYY-MM-DDTHH:MM:SS format string or human-readable fallback or null",
@@ -1093,8 +1186,10 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     const parsed = parseCleanJSON(response.text);
     console.log('[AI Simulator Engine] Combined parsing output:', parsed);
 
-    const targetPhone = customerPhone || '9999999999';
-    const targetName = parsed.customerName || customerName || 'Test Customer';
+    const parsedHandoff = parsed.isHandoff === true;
+
+    // Log bot response
+    await logMessageToConversation(emailKey, targetPhone, targetName, 'bot', parsed.reply || '', parsedHandoff ? 'human' : 'ai');
 
     // Save CRM details to SQLite database
     if (db) {
@@ -1108,7 +1203,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
           `,
             leadId,
             emailKey,
-            targetName,
+            parsed.customerName || targetName,
             targetPhone,
             parsed.service || 'Simulator Inquiry',
             'N/A',
@@ -1128,7 +1223,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
         `,
           apptId,
           emailKey,
-          targetName,
+          parsed.customerName || targetName,
           targetPhone,
           parsed.service || 'Appointment',
           parsed.dateTime,
@@ -1188,6 +1283,21 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
  */
 async function processIncomingMessage(userMessage, customerPhone, customerName, profile) {
   try {
+    const ownerEmail = (profile.email || 'kartikparashar15@gmail.com').toLowerCase();
+    
+    // Log incoming customer message
+    await logMessageToConversation(ownerEmail, customerPhone, customerName, 'customer', userMessage);
+
+    // Verify Handoff State
+    if (db) {
+      const conv = await db.get('SELECT status FROM conversations WHERE customer_phone = ? AND owner_email = ?', customerPhone, ownerEmail);
+      if (conv && conv.status === 'human') {
+        console.log(`[AI Engine] Human handoff active for ${customerPhone}. Skipping AI generation.`);
+        return;
+      }
+    }
+
+    const groundingText = await getGroundingContext(ownerEmail, userMessage);
     const today = new Date();
     const categoryLabel = profile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
     
@@ -1202,15 +1312,19 @@ You are the AI Front Desk for "${profile.businessName}", a premium ${categoryLab
 Business contact: Phone: ${profile.businessPhone}, Website: ${profile.businessWebsite}.
 Your personality: ${profile.aiPersona} (always polite, helpful, and concise).
 
+${groundingText}
+
 Tasks:
 1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
 2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
+3. If the client asks to speak to a human/staff/manager, or if you cannot answer their query from the provided instructions/niche, set "isHandoff" to true.
 
 You MUST reply ONLY with a valid JSON block matching this exact structure, do not wrap it in anything else, do not include markdown blocks:
 {
   "reply": "conversational reply under 3 sentences to send to WhatsApp",
   "isBooking": true/false,
   "isLead": true/false,
+  "isHandoff": true/false,
   "customerName": "extracted customer name or fallback",
   "service": "extracted service name (e.g. Teeth Cleaning, Haircut) or null",
   "dateTime": "computed YYYY-MM-DDTHH:MM:SS format string or human-readable fallback or null",
@@ -1230,21 +1344,24 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     const parsed = parseCleanJSON(response.text);
     console.log('[AI Engine] Combined parsing output:', parsed);
 
+    const parsedHandoff = parsed.isHandoff === true;
+
+    // Log bot response
+    await logMessageToConversation(ownerEmail, customerPhone, customerName, 'bot', parsed.reply || '', parsedHandoff ? 'human' : 'ai');
+
     // 1. Send the AI reply back on WhatsApp
     if (parsed.reply) {
       await sendWhatsAppMessage(customerPhone, parsed.reply, profile);
     }
-
-    // 2. Save CRM details to SQL database
-    const ownerEmail = profile.email || 'kartikparashar15@gmail.com';
 
     if (!db) {
       console.warn('[AI Engine] Database not initialized. Skipping CRM log.');
       return;
     }
 
+    // 2. Save CRM details to SQL database
     if (parsed.isLead || parsed.isBooking) {
-      const exists = await db.get('SELECT id FROM leads WHERE phone = ? AND owner_email = ?', customerPhone, ownerEmail.toLowerCase());
+      const exists = await db.get('SELECT id FROM leads WHERE phone = ? AND owner_email = ?', customerPhone, ownerEmail);
       if (!exists) {
         const leadId = 'wa-lead-' + Date.now();
         await db.run(`
@@ -1252,7 +1369,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
           leadId,
-          ownerEmail.toLowerCase(),
+          ownerEmail,
           parsed.customerName || customerName,
           customerPhone,
           parsed.service || 'WhatsApp Inquiry',
@@ -1273,7 +1390,7 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
       `,
         apptId,
-        ownerEmail.toLowerCase(),
+        ownerEmail,
         parsed.customerName || customerName,
         customerPhone,
         parsed.service || 'Appointment',
@@ -1289,6 +1406,355 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     await sendWhatsAppMessage(customerPhone, `Hi ${customerName}, thank you for contacting us. We received your request and will get back to you shortly!`, profile);
   }
 }
+
+// ==========================================
+// SAAS PLATFORM ADD-ONS & COMPONENT APIs
+// ==========================================
+
+async function getGroundingContext(emailKey, queryText) {
+  if (!db) return "";
+  try {
+    const cleanEmail = emailKey.toLowerCase();
+    const faqs = await db.all('SELECT question, answer FROM faqs WHERE owner_email = ?', cleanEmail);
+    let matchedContext = "";
+    for (const faq of faqs) {
+      if (queryText.toLowerCase().includes(faq.question.toLowerCase())) {
+        matchedContext += `Q: ${faq.question}\nA: ${faq.answer}\n\n`;
+      }
+    }
+
+    const docs = await db.all('SELECT file_name, file_content FROM knowledge_base WHERE owner_email = ?', cleanEmail);
+    for (const doc of docs) {
+      const lines = doc.file_content.split('\n');
+      let matchesInDoc = [];
+      for (const line of lines) {
+        if (line.trim().length > 6) {
+          const words = line.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          const matches = words.filter(w => queryText.toLowerCase().includes(w));
+          if (matches.length >= 2) {
+            matchesInDoc.push(line.trim());
+          }
+        }
+      }
+      if (matchesInDoc.length > 0) {
+        matchedContext += `Context from file (${doc.file_name}):\n${matchesInDoc.slice(0, 5).join('\n')}\n\n`;
+      }
+    }
+
+    if (matchedContext) {
+      return `Use the following matching FAQs or Knowledge Base text to answer the query accurately:\n${matchedContext}`;
+    }
+    return "";
+  } catch (err) {
+    console.error("Error in getGroundingContext:", err);
+    return "";
+  }
+}
+
+async function logMessageToConversation(emailKey, customerPhone, customerName, sender, text, forcedStatus = null) {
+  if (!db) return null;
+  try {
+    const cleanEmail = emailKey.toLowerCase();
+    let conv = await db.get('SELECT * FROM conversations WHERE customer_phone = ? AND owner_email = ?', customerPhone, cleanEmail);
+    const convId = conv?.id || 'conv-' + Date.now();
+    if (!conv) {
+      await db.run(
+        'INSERT INTO conversations (id, owner_email, customer_phone, customer_name, status, last_message) VALUES (?, ?, ?, ?, ?, ?)',
+        convId, cleanEmail, customerPhone, customerName, forcedStatus || 'ai', text
+      );
+    } else {
+      const newStatus = forcedStatus || conv.status;
+      await db.run(
+        'UPDATE conversations SET last_message = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        text, newStatus, convId
+      );
+    }
+    const msgId = 'msg-' + Date.now();
+    await db.run(
+      'INSERT INTO messages (id, conversation_id, sender, message_text) VALUES (?, ?, ?, ?)',
+      msgId, convId, sender, text
+    );
+    return convId;
+  } catch (err) {
+    console.error('Error logging message to conversation:', err.message);
+    return null;
+  }
+}
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.post('/v1/knowledge-base/upload', checkAuth, upload.single('file'), async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded.' });
+    }
+
+    const fileName = req.file.originalname;
+    const fileType = fileName.split('.').pop().toLowerCase();
+    let fileContentText = "";
+
+    if (fileType === 'txt') {
+      fileContentText = req.file.buffer.toString('utf8');
+    } else if (fileType === 'pdf') {
+      const parsedPdf = await pdfParse(req.file.buffer);
+      fileContentText = parsedPdf.text;
+    } else if (fileType === 'docx') {
+      const parsedDoc = await mammoth.extractRawText({ buffer: req.file.buffer });
+      fileContentText = parsedDoc.value;
+    } else {
+      return res.status(400).json({ success: false, error: 'Unsupported file type. Only TXT, PDF, DOCX are allowed.' });
+    }
+
+    const id = 'kb-' + Date.now();
+    await db.run(
+      'INSERT INTO knowledge_base (id, owner_email, file_name, file_type, file_content) VALUES (?, ?, ?, ?, ?)',
+      id, emailKey, fileName, fileType, fileContentText
+    );
+
+    return res.status(200).json({ success: true, message: 'File parsed and stored in Knowledge Base.' });
+  } catch (err) {
+    console.error('Upload error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/knowledge-base', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const rows = await db.all('SELECT id, file_name, file_type, created_at FROM knowledge_base WHERE owner_email = ?', emailKey);
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/v1/knowledge-base/:id', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    await db.run('DELETE FROM knowledge_base WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/v1/faqs', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const { question, answer } = req.body;
+    const id = 'faq-' + Date.now();
+    await db.run(
+      'INSERT INTO faqs (id, owner_email, question, answer) VALUES (?, ?, ?, ?)',
+      id, emailKey, question, answer
+    );
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/faqs', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const rows = await db.all('SELECT * FROM faqs WHERE owner_email = ?', emailKey);
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/v1/faqs/:id', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    await db.run('DELETE FROM faqs WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/conversations', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const rows = await db.all('SELECT * FROM conversations WHERE owner_email = ? ORDER BY updated_at DESC', emailKey);
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/conversations/:id/messages', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: 'Conversation not found.' });
+    }
+    const rows = await db.all('SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC', req.params.id);
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/v1/conversations/:id/reply', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const { text } = req.body;
+    const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: 'Conversation not found.' });
+    }
+
+    const profile = await getProfileByEmail(emailKey);
+    // Send WhatsApp message (if connected)
+    await sendWhatsAppMessage(conv.customer_phone, text, profile);
+
+    const msgId = 'msg-' + Date.now();
+    await db.run(
+      'INSERT INTO messages (id, conversation_id, sender, message_text) VALUES (?, ?, ?, ?)',
+      msgId, conv.id, 'staff', text
+    );
+    await db.run(
+      'UPDATE conversations SET last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      text, conv.id
+    );
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/v1/conversations/:id/status', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const { status } = req.body; // 'ai' or 'human'
+    const conv = await db.get('SELECT * FROM conversations WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: 'Conversation not found.' });
+    }
+    await db.run(
+      'UPDATE conversations SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      status, conv.id
+    );
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/staff', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const rows = await db.all('SELECT * FROM staff WHERE owner_email = ?', emailKey);
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/v1/staff', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const { name, email, role } = req.body;
+    const id = 'staff-' + Date.now();
+    await db.run(
+      'INSERT INTO staff (id, owner_email, name, email, role) VALUES (?, ?, ?, ?, ?)',
+      id, emailKey, name, email.toLowerCase(), role || 'staff'
+    );
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/v1/staff/:id', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    await db.run('DELETE FROM staff WHERE id = ? AND owner_email = ?', req.params.id, emailKey);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/v1/admin/businesses', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const callerProfile = await getProfileByEmail(emailKey);
+    if (!callerProfile || callerProfile.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Admin access only.' });
+    }
+
+    const rows = await db.all('SELECT email, business_name, role, is_onboarded, is_subscribed, subscription_plan, trial_start, is_suspended FROM business_profiles');
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/v1/admin/businesses/suspend', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.email.toLowerCase();
+    const callerProfile = await getProfileByEmail(emailKey);
+    if (!callerProfile || callerProfile.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Admin access only.' });
+    }
+
+    const { targetEmail, isSuspended } = req.body;
+    await db.run(
+      'UPDATE business_profiles SET is_suspended = ? WHERE email = ?',
+      isSuspended ? 1 : 0, targetEmail.toLowerCase()
+    );
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const swaggerSpec = {
+  openapi: '3.0.0',
+  info: {
+    title: 'FrontDesk AI SaaS API Documentation',
+    version: '1.0.0',
+    description: 'Complete API reference for FrontDesk AI reception and customer chatbot features.',
+  },
+  paths: {
+    '/v1/leads': {
+      get: {
+        summary: 'Get CRM leads',
+        responses: { 200: { description: 'Success' } }
+      }
+    },
+    '/v1/appointments': {
+      get: {
+        summary: 'Get appointments list',
+        responses: { 200: { description: 'Success' } }
+      }
+    },
+    '/v1/knowledge-base': {
+      get: {
+        summary: 'Get knowledge base files',
+        responses: { 200: { description: 'Success' } }
+      }
+    },
+    '/v1/faqs': {
+      get: {
+        summary: 'Get list of FAQs',
+        responses: { 200: { description: 'Success' } }
+      }
+    },
+    '/v1/conversations': {
+      get: {
+        summary: 'Get handoff conversations',
+        responses: { 200: { description: 'Success' } }
+      }
+    }
+  }
+};
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Catch-all route to serve the React index.html for client-side routing (Single Page App)
 app.get('*all', (req, res, next) => {

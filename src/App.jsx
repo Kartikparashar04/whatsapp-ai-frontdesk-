@@ -30,7 +30,10 @@ import {
   Shield,
   Link as LinkIcon,
   Copy,
-  Info
+  Info,
+  Database,
+  BookOpen,
+  UploadCloud
 } from 'lucide-react';
 import { 
   INITIAL_LEADS, 
@@ -516,6 +519,26 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [leadFilter, setLeadFilter] = useState('all');
   const [toast, setToast] = useState(null);
+  
+  // SaaS Feature State Additions
+  const [conversations, setConversations] = useState([]);
+  const [selectedConvId, setSelectedConvId] = useState('');
+  const [activeMessages, setActiveMessages] = useState([]);
+  const [replyText, setReplyText] = useState('');
+  
+  const [kbFiles, setKbFiles] = useState([]);
+  const [kbFaqs, setKbFaqs] = useState([]);
+  const [newFaqQuestion, setNewFaqQuestion] = useState('');
+  const [newFaqAnswer, setNewFaqAnswer] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const [staffList, setStaffList] = useState([]);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('staff');
+  
+  const [adminBusinesses, setAdminBusinesses] = useState([]);
+  const [adminSearch, setAdminSearch] = useState('');
   const [activities, setActivities] = useState([
     { id: 1, text: 'Lead Anjali Sharma converted from WhatsApp', time: '10 mins ago', type: 'success' },
     { id: 2, text: 'Google Review Request clicked by Rohan Verma', time: '1 hour ago', type: 'info' },
@@ -818,6 +841,95 @@ export default function App() {
       localStorage.removeItem('frontdesk_user');
     }
   }, [user]);
+
+  // SaaS API Fetch Handlers
+  const fetchConversations = async () => {
+    try {
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/conversations`);
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchMessages = async (id) => {
+    try {
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/conversations/${id}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        setActiveMessages(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchKnowledgeBase = async () => {
+    try {
+      const res1 = await authenticatedFetch(`${BACKEND_URL}/v1/knowledge-base`);
+      if (res1.ok) {
+        const data1 = await res1.json();
+        setKbFiles(data1);
+      }
+      const res2 = await authenticatedFetch(`${BACKEND_URL}/v1/faqs`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        setKbFaqs(data2);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`);
+      if (res.ok) {
+        const data = await res.json();
+        setStaffList(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchAdminBusinesses = async () => {
+    try {
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/admin/businesses`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdminBusinesses(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    if (activeTab === 'livechat') {
+      fetchConversations();
+    } else if (activeTab === 'knowledge') {
+      fetchKnowledgeBase();
+    } else if (activeTab === 'profile') {
+      fetchStaff();
+    } else if (activeTab === 'admin_panel') {
+      fetchAdminBusinesses();
+    }
+  }, [activeTab, user]);
+
+  useEffect(() => {
+    if (selectedConvId) {
+      fetchMessages(selectedConvId);
+      const t = setInterval(() => {
+        fetchMessages(selectedConvId);
+      }, 3000);
+      return () => clearInterval(t);
+    }
+  }, [selectedConvId]);
 
   // Monitor booking conflicts
   useEffect(() => {
@@ -3305,6 +3417,16 @@ export default function App() {
             </li>
             <li>
               <button 
+                onClick={() => { setActiveTab('livechat'); setIsMobileMenuOpen(false); }}
+                className={`menu-item ${activeTab === 'livechat' ? 'active' : ''}`}
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+              >
+                <MessageSquare size={18} style={{ color: 'var(--accent-blue)' }} />
+                <span>Live Chat & Handoff</span>
+              </button>
+            </li>
+            <li>
+              <button 
                 onClick={() => { setActiveTab('appointments'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'appointments' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
@@ -3321,6 +3443,16 @@ export default function App() {
               >
                 <Settings size={18} />
                 <span>Automation Hub</span>
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setActiveTab('knowledge'); setIsMobileMenuOpen(false); }}
+                className={`menu-item ${activeTab === 'knowledge' ? 'active' : ''}`}
+                style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+              >
+                <Database size={18} style={{ color: 'var(--accent-purple)' }} />
+                <span>AI Knowledge Base</span>
               </button>
             </li>
             <li>
@@ -3363,6 +3495,18 @@ export default function App() {
                 <span>My Profile</span>
               </button>
             </li>
+            {user.role === 'admin' && (
+              <li>
+                <button 
+                  onClick={() => { setActiveTab('admin_panel'); setIsMobileMenuOpen(false); }}
+                  className={`menu-item ${activeTab === 'admin_panel' ? 'active' : ''}`}
+                  style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                >
+                  <Shield size={18} style={{ color: 'var(--accent-pink)' }} />
+                  <span>SaaS Admin Console</span>
+                </button>
+              </li>
+            )}
           </ul>
         </div>
 
@@ -5102,6 +5246,510 @@ Your main tasks are:
                     Save Profile Details
                   </button>
                 </form>
+              </div>
+            </div>
+            
+            {/* Team Members Section */}
+            <div className="glass-panel" style={{ padding: '24px', marginTop: '24px', borderRadius: '12px' }}>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <Users size={18} style={{ color: 'var(--accent-blue)' }} />
+                Manage Team Members (Staff Roles)
+              </h3>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newStaffName, email: newStaffEmail, role: newStaffRole })
+                  });
+                  if (res.ok) {
+                    triggerToast("Team member added successfully!", "green");
+                    setNewStaffName('');
+                    setNewStaffEmail('');
+                    fetchStaff();
+                  }
+                } catch (err) {
+                  triggerToast("Error adding team member.", "red");
+                }
+              }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end', marginBottom: '20px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Staff Name</label>
+                  <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} required placeholder="e.g. John Doe" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Staff Email</label>
+                  <input type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} required placeholder="e.g. john@business.com" />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Role</label>
+                  <select value={newStaffRole} onChange={e => setNewStaffRole(e.target.value)}>
+                    <option value="staff">Staff Member (Manual Replies)</option>
+                    <option value="admin">Admin Helper (Full Control)</option>
+                  </select>
+                </div>
+                <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add Member</button>
+              </form>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>NAME</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>EMAIL</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ROLE</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffList.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>No team members added yet.</td>
+                      </tr>
+                    ) : (
+                      staffList.map(member => (
+                        <tr key={member.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: '600' }}>{member.name}</td>
+                          <td style={{ padding: '12px 8px' }}>{member.email}</td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span className={`badge ${member.role === 'admin' ? 'badge-new' : 'badge-followed_up'}`}>
+                              {member.role === 'admin' ? 'Admin' : 'Staff'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <button onClick={async () => {
+                              try {
+                                const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff/${member.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                  triggerToast("Member removed.", "green");
+                                  fetchStaff();
+                                }
+                              } catch (err) {
+                                triggerToast("Error removing member.", "red");
+                              }
+                            }} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}>Remove</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Live Chat & Human Handoff */}
+        {activeTab === 'livechat' && (
+          <div className="tab-content" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', height: 'calc(100vh - 120px)', minHeight: '500px' }}>
+            {/* Left sidebar - conversations list */}
+            <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>Active Chats</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {conversations.length === 0 ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '20px' }}>No active chats.</p>
+                ) : (
+                  conversations.map(conv => (
+                    <div 
+                      key={conv.id} 
+                      onClick={() => setSelectedConvId(conv.id)}
+                      style={{ 
+                        padding: '12px', 
+                        borderRadius: '8px', 
+                        background: selectedConvId === conv.id ? 'var(--hover-bg)' : 'rgba(255,255,255,0.03)', 
+                        border: selectedConvId === conv.id ? '1px solid var(--accent-blue)' : '1px solid var(--border-light)', 
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: '700', fontSize: '0.8rem' }}>{conv.customer_name}</span>
+                        <span className={`badge ${conv.status === 'human' ? 'badge-new' : 'badge-converted'}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                          {conv.status === 'human' ? 'Staff' : 'AI'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', margin: 0 }}>
+                        {conv.last_message || "No messages."}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Right sidebar - chat pane */}
+            <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              {selectedConvId ? (
+                (() => {
+                  const currentConv = conversations.find(c => c.id === selectedConvId) || {};
+                  return (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', marginBottom: '16px' }}>
+                        <div>
+                          <h4 style={{ fontWeight: '700', margin: 0 }}>{currentConv.customer_name}</h4>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Phone: {currentConv.customer_phone}</p>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            const newStatus = currentConv.status === 'human' ? 'ai' : 'human';
+                            try {
+                              const res = await authenticatedFetch(`${BACKEND_URL}/v1/conversations/${selectedConvId}/status`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: newStatus })
+                              });
+                              if (res.ok) {
+                                triggerToast(`Chat handed over to ${newStatus === 'human' ? 'Staff member' : 'AI Assistant'}.`, "green");
+                                fetchConversations();
+                              }
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          className="btn-primary" 
+                          style={{ 
+                            background: currentConv.status === 'human' ? 'linear-gradient(135deg, #1e8e3e 0%, #34a853 100%)' : 'linear-gradient(135deg, #8a2be2 0%, #da70d6 100%)', 
+                            padding: '8px 16px', 
+                            fontSize: '0.75rem',
+                            border: 'none',
+                            color: '#fff',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {currentConv.status === 'human' ? '✅ AI Response Active' : '🙋‍♂️ Pause AI & Takeover'}
+                        </button>
+                      </div>
+
+                      {/* Messages scroll pane */}
+                      <div style={{ flexGrow: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                        {activeMessages.length === 0 ? (
+                          <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '20px' }}>Loading conversation history...</p>
+                        ) : (
+                          activeMessages.map(msg => (
+                            <div 
+                              key={msg.id} 
+                              style={{ 
+                                alignSelf: msg.sender === 'customer' ? 'flex-start' : 'flex-end',
+                                background: msg.sender === 'customer' ? '#202c33' : 'linear-gradient(135deg, #0070f3 0%, #00dfd8 100%)',
+                                color: '#fff',
+                                padding: '10px 14px',
+                                borderRadius: '12px',
+                                maxWidth: '70%',
+                                fontSize: '0.8rem',
+                                boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
+                              }}
+                            >
+                              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{msg.message_text}</p>
+                              <span style={{ display: 'block', textAlign: 'right', fontSize: '0.6rem', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Reply textbox */}
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!replyText.trim()) return;
+                        try {
+                          const res = await authenticatedFetch(`${BACKEND_URL}/v1/conversations/${selectedConvId}/reply`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: replyText })
+                          });
+                          if (res.ok) {
+                            setReplyText('');
+                            fetchMessages(selectedConvId);
+                            fetchConversations();
+                          }
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }} style={{ display: 'flex', gap: '10px' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Type reply as staff member..." 
+                          value={replyText} 
+                          onChange={e => setReplyText(e.target.value)} 
+                          style={{ flexGrow: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.8rem' }}
+                        />
+                        <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Send</button>
+                      </form>
+                    </>
+                  );
+                })()
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: 'var(--text-muted)' }}>
+                  <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                  <p style={{ fontSize: '0.85rem' }}>Select a conversation from the sidebar to view chat logs and reply manually.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: AI Knowledge Base */}
+        {activeTab === 'knowledge' && (
+          <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* File Upload Grid */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <Database size={18} style={{ color: 'var(--accent-purple)' }} />
+                Grounding Knowledge corpus (Upload PDF/TXT/DOCX)
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '2px dashed var(--border-light)', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', textAlign: 'center' }}>
+                  <UploadCloud size={32} style={{ color: 'var(--text-muted)' }} />
+                  <div>
+                    <p style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>Choose a Knowledge file</p>
+                    <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>Supports PDF, TXT or Word DOCX (Max 5MB)</p>
+                  </div>
+                  
+                  <input 
+                    type="file" 
+                    id="kb-upload-input" 
+                    style={{ display: 'none' }} 
+                    accept=".pdf,.docx,.txt"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      setIsUploading(true);
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      try {
+                        const token = localStorage.getItem('frontdesk_token') || 'kartikparashar15@gmail.com';
+                        const res = await fetch(`${BACKEND_URL}/v1/knowledge-base/upload`, {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${token}` },
+                          body: formData
+                        });
+                        if (res.ok) {
+                          triggerToast("Document uploaded and indexed successfully!", "green");
+                          fetchKnowledgeBase();
+                        } else {
+                          const err = await res.json();
+                          triggerToast(`Upload failed: ${err.error}`, "red");
+                        }
+                      } catch (err) {
+                        triggerToast("Network error uploading file.", "red");
+                      } finally {
+                        setIsUploading(false);
+                      }
+                    }}
+                  />
+                  <button 
+                    onClick={() => document.getElementById('kb-upload-input').click()}
+                    className="btn-secondary" 
+                    disabled={isUploading}
+                    style={{ padding: '8px 16px', fontSize: '0.75rem' }}
+                  >
+                    {isUploading ? 'Uploading...' : 'Browse Local Files'}
+                  </button>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: '700', marginBottom: '12px' }}>Indexed Documents</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {kbFiles.length === 0 ? (
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '12px', border: '1px solid var(--border-light)', borderRadius: '8px', textAlign: 'center' }}>No grounding files added yet.</p>
+                    ) : (
+                      kbFiles.map(file => (
+                        <div key={file.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', borderRadius: '8px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.8rem', fontWeight: '600' }}>{file.file_name}</span>
+                            <span className="badge badge-new" style={{ fontSize: '0.6rem', padding: '2px 6px', marginLeft: '8px', textTransform: 'uppercase' }}>{file.file_type}</span>
+                          </div>
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await authenticatedFetch(`${BACKEND_URL}/v1/knowledge-base/${file.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                  triggerToast("File deleted from Knowledge Base.", "green");
+                                  fetchKnowledgeBase();
+                                }
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="btn-secondary" 
+                            style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Q&A / FAQ section */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <BookOpen size={18} style={{ color: 'var(--accent-blue)' }} />
+                Instant FAQ Library (Grounding Context Q&A)
+              </h3>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  const res = await authenticatedFetch(`${BACKEND_URL}/v1/faqs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: newFaqQuestion, answer: newFaqAnswer })
+                  });
+                  if (res.ok) {
+                    triggerToast("FAQ added successfully!", "green");
+                    setNewFaqQuestion('');
+                    setNewFaqAnswer('');
+                    fetchKnowledgeBase();
+                  }
+                } catch (err) {
+                  console.error(err);
+                }
+              }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '16px', alignItems: 'end', marginBottom: '24px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Question</label>
+                  <input type="text" value={newFaqQuestion} onChange={e => setNewFaqQuestion(e.target.value)} required placeholder="e.g. Do you accept insurance?" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'white' }} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Answer</label>
+                  <input type="text" value={newFaqAnswer} onChange={e => setNewFaqAnswer(e.target.value)} required placeholder="e.g. Yes, we support HDFC, Star Health and ICICI insurance." style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'white' }} />
+                </div>
+                <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add FAQ</button>
+              </form>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {kbFaqs.length === 0 ? (
+                  <p style={{ gridColumn: 'span 2', fontSize: '0.8rem', color: 'var(--text-muted)' }}>No FAQs configured.</p>
+                ) : (
+                  kbFaqs.map(faq => (
+                    <div key={faq.id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
+                      <div>
+                        <p style={{ fontWeight: '700', fontSize: '0.8rem', margin: '0 0 4px 0' }}>Q: {faq.question}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>A: {faq.answer}</p>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const res = await authenticatedFetch(`${BACKEND_URL}/v1/faqs/${faq.id}`, { method: 'DELETE' });
+                            if (res.ok) {
+                              triggerToast("FAQ deleted.", "green");
+                              fetchKnowledgeBase();
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="btn-secondary" 
+                        style={{ alignSelf: 'flex-start', padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)', cursor: 'pointer' }}
+                      >
+                        Delete FAQ
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Admin Panel */}
+        {activeTab === 'admin_panel' && (
+          <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+                <Shield size={18} style={{ color: 'var(--accent-pink)' }} />
+                SaaS Superadmin Management Console
+              </h3>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ flexGrow: 1, position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Search businesses by email or name..." 
+                    value={adminSearch}
+                    onChange={e => setAdminSearch(e.target.value)}
+                    style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.8rem', background: 'white' }}
+                  />
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--text-muted)' }} />
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>BUSINESS EMAIL</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>BUSINESS NAME</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ROLE</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ONBOARDED</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>SUBSCRIPTION</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>TRIAL START</th>
+                      <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>SUSPENSION STATE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminBusinesses
+                      .filter(biz => 
+                        biz.email.toLowerCase().includes(adminSearch.toLowerCase()) || 
+                        (biz.business_name && biz.business_name.toLowerCase().includes(adminSearch.toLowerCase()))
+                      )
+                      .map(biz => (
+                        <tr key={biz.email} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: '700' }}>{biz.email}</td>
+                          <td style={{ padding: '12px 8px' }}>{biz.business_name || 'N/A'}</td>
+                          <td style={{ padding: '12px 8px', textTransform: 'uppercase' }}>{biz.role}</td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span className={`badge ${biz.is_onboarded === 1 ? 'badge-converted' : 'badge-noshow'}`}>
+                              {biz.is_onboarded === 1 ? 'Yes' : 'No'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span className={`badge ${biz.is_subscribed === 1 ? 'badge-converted' : 'badge-noshow'}`}>
+                              {biz.is_subscribed === 1 ? `${biz.subscription_plan}` : 'Trial / None'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>{biz.trial_start ? new Date(biz.trial_start).toLocaleDateString() : 'N/A'}</td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <button 
+                              onClick={async () => {
+                                const newSusp = biz.is_suspended !== 1;
+                                try {
+                                  const res = await authenticatedFetch(`${BACKEND_URL}/v1/admin/businesses/suspend`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ targetEmail: biz.email, isSuspended: newSusp })
+                                  });
+                                  if (res.ok) {
+                                    triggerToast(`Account suspension toggled.`, "green");
+                                    fetchAdminBusinesses();
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                }
+                              }}
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '6px 12px', 
+                                fontSize: '0.75rem', 
+                                color: biz.is_suspended === 1 ? 'var(--accent-green)' : 'var(--accent-red)',
+                                borderColor: biz.is_suspended === 1 ? 'var(--accent-green)' : 'var(--accent-red)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {biz.is_suspended === 1 ? 'Unsuspend' : 'Suspend Account'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
