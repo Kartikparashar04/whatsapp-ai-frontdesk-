@@ -205,6 +205,9 @@ async function initSQLite() {
     try {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN is_suspended INTEGER DEFAULT 0`);
     } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE staff ADD COLUMN permissions TEXT DEFAULT '{}'`);
+    } catch (err) {}
     
     console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews, staff, conversations, messages, knowledge_base, faqs) initialized successfully!');
   } catch (error) {
@@ -241,13 +244,23 @@ async function checkAuth(req, res, next) {
 
     // Verify suspension status and determine owner email mapping in SQLite DB
     if (db) {
-      const staffRow = await db.get('SELECT owner_email, role FROM staff WHERE LOWER(email) = ?', email.toLowerCase());
+      const staffRow = await db.get('SELECT owner_email, role, permissions FROM staff WHERE LOWER(email) = ?', email.toLowerCase());
       if (staffRow) {
         req.user.ownerEmail = staffRow.owner_email.toLowerCase();
         req.user.role = staffRow.role || 'staff';
+        try {
+          req.user.permissions = JSON.parse(staffRow.permissions || '{}');
+        } catch (e) {
+          req.user.permissions = {};
+        }
       } else {
         req.user.ownerEmail = email.toLowerCase();
         req.user.role = 'owner';
+        req.user.permissions = {
+          canDeleteLeads: true,
+          canViewBilling: true,
+          canEditSettings: true
+        };
       }
 
       const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', req.user.ownerEmail);
@@ -515,8 +528,72 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
 
     console.log(`Successfully synced business profile for email ${emailKey}`);
     return res.status(200).json({ success: true, message: 'Business profile synced in SQL successfully!' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 3e. POST Send test WhatsApp ping to verify Meta API connection
+ */
+app.post('/v1/meta-test-ping', checkAuth, async (req, res) => {
+  try {
+    const { accessToken, phoneNumberId, testPhone } = req.body;
+    if (!accessToken || !phoneNumberId || !testPhone) {
+      return res.status(400).json({ success: false, error: 'Missing required parameters (accessToken, phoneNumberId, testPhone).' });
+    }
+
+    // Mock validation: if it is dummy data, simulate success
+    if (accessToken.includes('secure_bearer') || accessToken === 'mock_token' || phoneNumberId.includes('12345') || accessToken.startsWith('EAAB')) {
+      if (accessToken.startsWith('EAAB') && !accessToken.includes('secure_bearer') && !accessToken.includes('mock_token')) {
+        // Fall through to real token
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return res.status(200).json({ success: true, isMock: true, message: 'Simulated connection success for demo credentials!' });
+      }
+    }
+
+    // Try real API call to send a test message
+    const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+    const payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: testPhone,
+      type: "text",
+      text: {
+        preview_url: false,
+        body: "Hello! This is a test message from your DeskFlow AI Front Desk console to verify your Meta API connection. It works! 🎉"
+      }
+    };
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    return res.status(200).json({ success: true, data: response.data });
   } catch (error) {
-    console.error('Error saving business profile to SQL:', error.message);
+    console.error('Meta API Test Ping Error:', error.response ? error.response.data : error.message);
+    const apiError = error.response ? error.response.data?.error?.message : error.message;
+    return res.status(500).json({ success: false, error: apiError || 'Failed to connect to Meta API.' });
+  }
+});
+
+/**
+ * 3g. POST Load demo data for previewing Dashboard widgets
+ */
+app.post('/v1/load-demo-data', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.ownerEmail;
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    }
+    await seedDefaultDataForUser(emailKey);
+    return res.status(200).json({ success: true, message: 'Demo data loaded successfully!' });
+  } catch (error) {
+    console.error('Error loading demo data:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -622,6 +699,7 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
         return res.status(200).json({
           ...profile,
           role: req.user.role || 'staff',
+          permissions: req.user.permissions || {},
           email: emailKey,
           ownerEmail: ownerEmail,
           isStaff: true
@@ -633,10 +711,24 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
     if (profile) {
       return res.status(200).json({
         ...profile,
-        role: 'owner'
+        role: 'owner',
+        permissions: {
+          canDeleteLeads: true,
+          canViewBilling: true,
+          canEditSettings: true
+        }
       });
     }
-    return res.status(200).json({ email: emailKey, isNew: true, role: 'owner' });
+    return res.status(200).json({
+      email: emailKey,
+      isNew: true,
+      role: 'owner',
+      permissions: {
+        canDeleteLeads: true,
+        canViewBilling: true,
+        canEditSettings: true
+      }
+    });
   } catch (error) {
     console.error('Error fetching business profile:', error.message);
     return res.status(500).json({ success: false, error: error.message });
@@ -883,8 +975,8 @@ app.get('/v1/leads', checkAuth, async (req, res) => {
       return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     }
     
-    // Seed database if empty for this user
-    await seedDefaultDataForUser(emailKey);
+    // Seed database if empty for this user - disabled auto seeder
+    // await seedDefaultDataForUser(emailKey);
 
     const rows = await db.all('SELECT * FROM leads WHERE owner_email = ? ORDER BY date DESC', emailKey);
     return res.status(200).json(rows);
@@ -918,6 +1010,10 @@ app.delete('/v1/appointments/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const emailKey = req.user.ownerEmail;
+
+    if (req.user.role === 'staff' && !req.user.permissions?.canDeleteLeads) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have permission to delete appointments.' });
+    }
     console.log(`[CRM] Request to delete appointment ID: ${id} by owner ${emailKey}`);
 
     if (!db) {
@@ -939,6 +1035,10 @@ app.delete('/v1/leads/:id', checkAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const emailKey = req.user.ownerEmail;
+
+    if (req.user.role === 'staff' && !req.user.permissions?.canDeleteLeads) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You do not have permission to delete leads.' });
+    }
     console.log(`[CRM] Request to delete lead ID: ${id} by owner ${emailKey}`);
 
     if (!db) {
@@ -1690,7 +1790,11 @@ app.get('/v1/staff', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.ownerEmail;
     const rows = await db.all('SELECT * FROM staff WHERE owner_email = ?', emailKey);
-    return res.status(200).json(rows);
+    const mapped = rows.map(r => ({
+      ...r,
+      permissions: JSON.parse(r.permissions || '{}')
+    }));
+    return res.status(200).json(mapped);
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -1702,11 +1806,12 @@ app.post('/v1/staff', checkAuth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Forbidden: Business owner only.' });
     }
     const emailKey = req.user.ownerEmail;
-    const { name, email, role } = req.body;
+    const { name, email, role, permissions } = req.body;
     const id = 'staff-' + Date.now();
+    const permissionsStr = JSON.stringify(permissions || {});
     await db.run(
-      'INSERT INTO staff (id, owner_email, name, email, role) VALUES (?, ?, ?, ?, ?)',
-      id, emailKey, name, email.toLowerCase(), role || 'staff'
+      'INSERT INTO staff (id, owner_email, name, email, role, permissions) VALUES (?, ?, ?, ?, ?, ?)',
+      id, emailKey, name, email.toLowerCase(), role || 'staff', permissionsStr
     );
     return res.status(200).json({ success: true });
   } catch (err) {

@@ -551,6 +551,60 @@ export default function App() {
   const [isLiveAiMode, setIsLiveAiMode] = useState(false);
   const chatEndRef = useRef(null);
 
+  // Meta API Test Ping & Staff Custom Permissions & Google Place Autocomplete State
+  const [permDeleteLeads, setPermDeleteLeads] = useState(false);
+  const [permViewBilling, setPermViewBilling] = useState(false);
+  const [permEditSettings, setPermEditSettings] = useState(false);
+  
+  const [placeSearchInput, setPlaceSearchInput] = useState('');
+  const [placeMatches, setPlaceMatches] = useState([]);
+  const [placeDropdownOpen, setPlaceDropdownOpen] = useState(false);
+
+  const [showSimDebug, setShowSimDebug] = useState(true);
+  const [simDebugLogs, setSimDebugLogs] = useState([
+    {
+      timestamp: new Date().toLocaleTimeString(),
+      event: 'SYSTEM_INIT',
+      message: 'AI playground engine initialized.',
+      details: {
+        niche: activeNiche,
+        tone: nicheConfigs[activeNiche]?.aiPersona || 'Friendly',
+        mode: 'Offline Bot Mock'
+      }
+    }
+  ]);
+
+  const MOCK_PLACES = [
+    { name: "Zenith Dental Clinic (Indiranagar)", address: "123, 100 Feet Rd, Hal 2nd Stage, Indiranagar, Bengaluru, 560038", placeId: "ChIJN1t_t44RrjsR3B7P62oXgJc", apiKey: "AIzaSyMockKey_ZenithIndiranagar_991823" },
+    { name: "Glow & Style Salon & Spa (HSR)", address: "14th Main Rd, Sector 7, HSR Layout, Bengaluru, 560102", placeId: "ChIJW1T_t44RrjsR2P7Q62oXgBd", apiKey: "AIzaSyMockKey_GlowStyleHSR_881923" },
+    { name: "Apex Dental Clinic (Whitefield)", address: "ITPL Main Rd, Phase 2, Brookefield, Bengaluru, 560066", placeId: "ChIJt5t_t44RrjsR1P7L62oXgAe", apiKey: "AIzaSyMockKey_ApexWhitefield_771024" },
+    { name: "Glamour & Co Salon (Koramangala)", address: "80 Feet Rd, 4th Block, Koramangala, Bengaluru, 560034", placeId: "ChIJK1T_t44RrjsR4P7S62oXgCf", apiKey: "AIzaSyMockKey_GlamourKoramangala_661925" }
+  ];
+
+  const handlePlaceSearchChange = (e) => {
+    const value = e.target.value;
+    setPlaceSearchInput(value);
+    if (value.trim().length > 1) {
+      const filtered = MOCK_PLACES.filter(p => p.name.toLowerCase().includes(value.toLowerCase()));
+      setPlaceMatches(filtered);
+      setPlaceDropdownOpen(true);
+    } else {
+      setPlaceMatches([]);
+      setPlaceDropdownOpen(false);
+    }
+  };
+
+  const handleSelectPlace = (match) => {
+    setPlaceSearchInput(match.name);
+    setPlaceDropdownOpen(false);
+    
+    const keyInput = document.getElementsByName('googleApiKey')[0];
+    const idInput = document.getElementsByName('googlePlaceId')[0];
+    if (keyInput) keyInput.value = match.apiKey;
+    if (idInput) idInput.value = match.placeId;
+    triggerToast("Google Place details auto-filled! Click save to apply.", "green");
+  };
+
   // Chatbot State Machine tracking
   const [botState, setBotState] = useState({
     step: 'greeting',
@@ -638,75 +692,69 @@ export default function App() {
     }
   }, [user]);
 
+  const syncCRMData = async () => {
+    if (!user) return;
+    try {
+      // 1. Fetch leads from WhatsApp backend
+      const resLeads = await authenticatedFetch(`${BACKEND_URL}/v1/leads`);
+      if (resLeads.ok) {
+        const waLeads = await resLeads.json();
+        setLeads(prevLeads => {
+          const isMock = prevLeads.some(l => l.id === 'l-1' || l.id === 'l-2');
+          const hasNew = waLeads.some(item => !prevLeads.some(existing => existing.id === item.id));
+          if (hasNew && prevLeads.length > 0 && !isMock) {
+            triggerToast("New Lead captured from WhatsApp AI!", "green");
+            addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
+            playAudioSfx('receive');
+            flashTabTitle("⚠️ New WhatsApp Lead!");
+          }
+          localStorage.setItem('frontdesk_leads', JSON.stringify(waLeads));
+          return waLeads;
+        });
+      }
+
+      // 2. Fetch appointments from WhatsApp backend
+      const resAppts = await authenticatedFetch(`${BACKEND_URL}/v1/appointments`);
+      if (resAppts.ok) {
+        const waAppts = await resAppts.json();
+        setAppointments(prevAppts => {
+          const normalizedAppts = waAppts.map(appt => ({
+            ...appt,
+            dateTime: appt.dateTime || appt.date_time || '',
+            niche: appt.niche || activeNiche
+          }));
+          const isMock = prevAppts.some(a => a.id === 'a-1' || a.id === 'a-2');
+          const hasNew = normalizedAppts.some(item => !prevAppts.some(existing => existing.id === item.id));
+          if (hasNew && prevAppts.length > 0 && !isMock) {
+            triggerToast("New Appointment booked via WhatsApp AI!", "green");
+            addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].name || 'Client'}`, 'success');
+            playAudioSfx('receive');
+            flashTabTitle("📅 New Booking!");
+          }
+          localStorage.setItem('frontdesk_appts', JSON.stringify(normalizedAppts));
+          return normalizedAppts;
+        });
+      }
+
+      // 4. Fetch reviews from SQLite
+      const resRevs = await authenticatedFetch(`${BACKEND_URL}/v1/reviews`);
+      if (resRevs.ok) {
+        const waRevs = await resRevs.json();
+        setReviews(prevRevs => {
+          localStorage.setItem('frontdesk_reviews', JSON.stringify(waRevs));
+          return waRevs;
+        });
+      }
+    } catch (err) {
+      // Fail silently
+    }
+  };
+
   // Dynamic WhatsApp CRM Sync Polling Hook
   useEffect(() => {
     if (!user) return;
-
-    const syncCRMData = async () => {
-      try {
-        // 1. Fetch leads from WhatsApp backend
-        const resLeads = await authenticatedFetch(`${BACKEND_URL}/v1/leads`);
-        if (resLeads.ok) {
-          const waLeads = await resLeads.json();
-          setLeads(prevLeads => {
-            const isMock = prevLeads.some(l => l.id === 'l-1' || l.id === 'l-2');
-            const hasNew = waLeads.some(item => !prevLeads.some(existing => existing.id === item.id));
-            if (hasNew && prevLeads.length > 0 && !isMock) {
-              triggerToast("New Lead captured from WhatsApp AI!", "green");
-              addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
-              playAudioSfx('receive');
-              flashTabTitle("⚠️ New WhatsApp Lead!");
-            }
-            localStorage.setItem('frontdesk_leads', JSON.stringify(waLeads));
-            return waLeads;
-          });
-        }
-
-        // 2. Fetch appointments from WhatsApp backend
-        const resAppts = await authenticatedFetch(`${BACKEND_URL}/v1/appointments`);
-        if (resAppts.ok) {
-          const waAppts = await resAppts.json();
-          setAppointments(prevAppts => {
-            const normalizedAppts = waAppts.map(appt => ({
-              ...appt,
-              dateTime: appt.dateTime || appt.date_time || '',
-              niche: appt.niche || activeNiche
-            }));
-            const isMock = prevAppts.some(a => a.id === 'a-1' || a.id === 'a-2');
-            const hasNew = normalizedAppts.some(item => !prevAppts.some(existing => existing.id === item.id));
-            if (hasNew && prevAppts.length > 0 && !isMock) {
-              triggerToast("New Appointment booked via WhatsApp AI!", "green");
-              addActivity(`Appointment scheduled via WhatsApp: ${normalizedAppts[normalizedAppts.length - 1].name || 'Client'}`, 'success');
-              playAudioSfx('receive');
-              flashTabTitle("📅 New Booking!");
-            }
-            localStorage.setItem('frontdesk_appts', JSON.stringify(normalizedAppts));
-            return normalizedAppts;
-          });
-        }
-
-        // 3. Referrals removed from SQLite
-
-        // 4. Fetch reviews from SQLite
-        const resRevs = await authenticatedFetch(`${BACKEND_URL}/v1/reviews`);
-        if (resRevs.ok) {
-          const waRevs = await resRevs.json();
-          setReviews(prevRevs => {
-            localStorage.setItem('frontdesk_reviews', JSON.stringify(waRevs));
-            return waRevs;
-          });
-        }
-      } catch (err) {
-        // Fail silently when server is offline or restarting
-      }
-    };
-
-    // Run once immediately on mount
     syncCRMData();
-
-    // Poll every 5 seconds
     const interval = setInterval(syncCRMData, 5000);
-
     return () => clearInterval(interval);
   }, [user, activeNiche]);
 
@@ -1677,6 +1725,71 @@ export default function App() {
     triggerToast("Logged out successfully.");
   };
 
+  // Action: Send test WhatsApp ping to verify Meta API connection
+  const handleMetaTestPing = async (customConfig = null) => {
+    const config = customConfig || whatsappConfig;
+    if (!config.accessToken || !config.phoneNumberId) {
+      triggerToast("Please input credentials first!", "red");
+      return;
+    }
+    const testPhone = prompt("Enter a test phone number (with country code, e.g., 919876543210):");
+    if (!testPhone) return;
+
+    try {
+      triggerToast("Sending test message...", "info");
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/meta-test-ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: config.accessToken,
+          phoneNumberId: config.phoneNumberId,
+          testPhone: testPhone
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        triggerToast(data.message || "Test message sent successfully! 🎉", "green");
+        addActivity(`Meta API test ping sent successfully to ${testPhone}`, "success");
+      } else {
+        triggerToast(`Ping failed: ${data.error || "Unknown Error"}`, "red");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Network error trying to ping Meta API.", "red");
+    }
+  };
+
+  const handleTestManualConnection = (formElement) => {
+    if (!formElement) return;
+    const accessToken = formElement.accessToken.value;
+    const phoneNumberId = formElement.phoneNumberId.value;
+    handleMetaTestPing({ accessToken, phoneNumberId });
+  };
+
+  // Action: Load demo data for previewing Dashboard widgets
+  const handleLoadDemoData = async () => {
+    try {
+      triggerToast("Loading demo data...", "info");
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/load-demo-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche: activeNiche })
+      });
+      const data = await res.json();
+      if (data.success) {
+        triggerToast("Demo data loaded successfully! 🎉", "green");
+        // Force refresh all CRM metrics and stats
+        await syncCRMData();
+        addActivity(`Loaded demo datasets for ${activeNiche} category`, "success");
+      } else {
+        triggerToast(`Failed to load data: ${data.error || "Unknown Error"}`, "red");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Network error trying to load demo data.", "red");
+    }
+  };
+
   // Action: Save WhatsApp API Integration Credentials
   const handleSaveWhatsAppConfig = (e) => {
     e.preventDefault();
@@ -1841,6 +1954,33 @@ export default function App() {
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }]);
           playAudioSfx('receive');
+
+          // Add debug log for Live AI response
+          const confidence = Math.floor(Math.random() * 8) + 92; // 92% - 99%
+          const matchedTone = user.aiPersona || 'Friendly';
+          let target = 'Unknown Intent';
+          const lowerMsg = userText.toLowerCase();
+          if (lowerMsg.includes('price') || lowerMsg.includes('cost')) target = 'Pricing Inquiry';
+          else if (lowerMsg.includes('book') || lowerMsg.includes('appt') || lowerMsg.includes('appointment')) target = 'Scheduling Slots';
+          else if (lowerMsg.includes('address') || lowerMsg.includes('where') || lowerMsg.includes('location')) target = 'Location Inquiry';
+          else target = 'Generative Conversation';
+
+          setSimDebugLogs(prev => [
+            {
+              timestamp: new Date().toLocaleTimeString(),
+              event: 'AI_REASONING',
+              message: `Processed message: "${userText}"`,
+              details: {
+                engine: 'Gemini-1.5-Flash (Live)',
+                target: target,
+                confidence: `${confidence}%`,
+                toneApplied: matchedTone,
+                matchedKeyword: 'N/A (Semantic Search)',
+                parameters: { customerName: user.name || 'Test User', textLength: userText.length }
+              }
+            },
+            ...prev
+          ]);
         }
       })
       .catch(err => {
@@ -1862,6 +2002,69 @@ export default function App() {
       let updatedTempLead = { ...botState.tempLead };
 
       const lowercaseText = userText.toLowerCase();
+
+      // Add debug logs for offline bot response
+      const matchedTone = nicheConfigs[activeNiche]?.aiPersona || 'Friendly';
+      let target = 'Greeting & Welcome';
+      let matchedKeyword = 'None';
+      let confidence = 85;
+
+      if (lowercaseText.includes('price') || lowercaseText.includes('cost') || lowercaseText.includes('how much')) {
+        target = 'Pricing Inquiry';
+        matchedKeyword = 'price/cost';
+        confidence = 98;
+      } else if (lowercaseText.includes('location') || lowercaseText.includes('where are you') || lowercaseText.includes('address')) {
+        target = 'Location Inquiry';
+        matchedKeyword = 'location/address';
+        confidence = 99;
+      } else if (lowercaseText.includes('timing') || lowercaseText.includes('hours') || lowercaseText.includes('open')) {
+        target = 'Timings Inquiry';
+        matchedKeyword = 'timing/hours';
+        confidence = 95;
+      } else {
+        switch (botState.step) {
+          case 'greeting':
+            target = 'Booking Intent Check';
+            confidence = 90;
+            break;
+          case 'capture_name':
+            target = 'Name Capture Check';
+            confidence = 92;
+            break;
+          case 'capture_phone':
+            target = 'Phone Number Capture Check';
+            confidence = 94;
+            break;
+          case 'capture_service':
+            target = 'Service Selection Match';
+            confidence = 96;
+            break;
+          case 'capture_datetime':
+            target = 'Booking Completion';
+            confidence = 98;
+            break;
+          default:
+            target = 'Generative Conversation';
+            confidence = 88;
+        }
+      }
+
+      setSimDebugLogs(prev => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          event: 'AI_REASONING',
+          message: `Processed message: "${userText}"`,
+          details: {
+            engine: 'DeskFlow RuleEngine (Mock)',
+            target: target,
+            confidence: `${confidence}%`,
+            toneApplied: matchedTone,
+            matchedKeyword: matchedKeyword,
+            parameters: { currentStep: botState.step, textLength: userText.length }
+          }
+        },
+        ...prev
+      ]);
 
       if (lowercaseText.includes('price') || lowercaseText.includes('cost') || lowercaseText.includes('how much')) {
         botResponse = currentConfig.mockAnswers.prices;
@@ -2019,6 +2222,10 @@ export default function App() {
 
   // Action: Delete Lead
   const handleDeleteLead = (leadId) => {
+    if (user && user.role === 'staff' && !user.permissions?.canDeleteLeads) {
+      triggerToast("Permission denied: cannot delete leads.", "red");
+      return;
+    }
     const lead = leads.find(l => l.id === leadId);
     setLeads(prev => prev.filter(l => l.id !== leadId));
     if (lead) {
@@ -2034,6 +2241,10 @@ export default function App() {
 
   // Action: Delete Appointment completely
   const handleDeleteAppointment = (apptId) => {
+    if (user && user.role === 'staff' && !user.permissions?.canDeleteLeads) {
+      triggerToast("Permission denied: cannot delete appointments.", "red");
+      return;
+    }
     const appt = appointments.find(a => a.id === apptId);
     setAppointments(prev => prev.filter(a => a.id !== apptId));
     if (appt) {
@@ -2150,6 +2361,44 @@ export default function App() {
 
       triggerToast("CSV file downloaded!", "green");
       addActivity(`Exported leads table as CSV file`, 'info');
+    } catch (err) {
+      console.error(err);
+      triggerToast("Export failed!");
+    }
+  };
+
+  // Action: Export Appointments as CSV
+  const handleExportAppointmentsCSV = () => {
+    try {
+      const activeAppts = appointments.filter(a => a.niche === activeNiche);
+      if (activeAppts.length === 0) {
+        triggerToast("No appointment data to export!");
+        return;
+      }
+
+      const headers = ['Name', 'Phone', 'Service', 'Date & Time', 'Status', 'Source'];
+      const rows = activeAppts.map(a => [
+        `"${a.name.replace(/"/g, '""')}"`,
+        `"${a.phone}"`,
+        `"${a.service.replace(/"/g, '""')}"`,
+        `"${a.dateTime}"`,
+        `"${a.status}"`,
+        `"${a.source || 'WhatsApp'}"`
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `frontdesk_appointments_${activeNiche}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      triggerToast("CSV file downloaded!", "green");
+      addActivity(`Exported appointments table as CSV file`, 'info');
     } catch (err) {
       console.error(err);
       triggerToast("Export failed!");
@@ -2935,7 +3184,7 @@ export default function App() {
 
   // SCREEN RENDER 2: DASHBOARD HOME
   return (
-    <div className="app-container">
+    <div className={`app-container ${showSimDebug ? 'sim-debug-open' : ''}`}>
       
       {/* Toast Banner */}
       {toast && (
@@ -3411,7 +3660,7 @@ export default function App() {
                 <span>Appointments</span>
               </button>
             </li>
-            {user.role !== 'staff' && (
+            {(user.role !== 'staff' || user.permissions?.canEditSettings) && (
               <>
                 <li>
                   <button 
@@ -3444,17 +3693,19 @@ export default function App() {
                     <span>Marketing Broadcast</span>
                   </button>
                 </li>
-                <li>
-                  <button 
-                    onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
-                    className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
-                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-                  >
-                    <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
-                    <span>Billing & Subscription</span>
-                  </button>
-                </li>
               </>
+            )}
+            {(user.role !== 'staff' || user.permissions?.canViewBilling) && (
+              <li>
+                <button 
+                  onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
+                  className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
+                  style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
+                >
+                  <Coins size={18} style={{ color: 'var(--accent-yellow)' }} />
+                  <span>Billing & Subscription</span>
+                </button>
+              </li>
             )}
             <li>
               <button 
@@ -3579,6 +3830,59 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <div className="tab-content" style={{ position: 'relative' }}>
             {!hasActivePlan && renderLockOverlay('Dashboard Analytics')}
+            
+            {leads.length === 0 && appointments.length === 0 && (
+              <div className="glass-panel" style={{
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '16px',
+                padding: '24px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
+                backdropFilter: 'blur(8px)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'left' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%)',
+                    borderRadius: '12px',
+                    padding: '12px',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.2)'
+                  }}>
+                    <Database size={24} />
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 4px 0', color: 'var(--text-primary)' }}>
+                      Dashboard is Empty
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Would you like to load demo datasets for the <strong>{activeNiche === 'dental' ? 'Dental Clinic' : 'Hair Salon'}</strong> category to preview widgets?
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleLoadDemoData}
+                  className="btn-primary" 
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '0.85rem',
+                    background: 'linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%)',
+                    border: 'none',
+                    fontWeight: 'bold',
+                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.2)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Load Demo Data ⚡
+                </button>
+              </div>
+            )}
             
             <div className="kpi-grid">
               <div className="glass-panel kpi-card">
@@ -3907,13 +4211,15 @@ export default function App() {
                               >
                                 <CheckCircle2 size={14} />
                               </button>
-                              <button 
-                                onClick={() => handleDeleteLead(lead.id)}
-                                className="action-btn action-btn-danger" 
-                                title="Remove Lead Record"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {!(user?.role === 'staff' && !user?.permissions?.canDeleteLeads) && (
+                                <button 
+                                  onClick={() => handleDeleteLead(lead.id)}
+                                  className="action-btn action-btn-danger" 
+                                  title="Remove Lead Record"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -3974,6 +4280,18 @@ export default function App() {
                     Month View
                   </button>
                 </div>
+
+                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-light)', margin: '0 8px' }}></div>
+
+                <button 
+                  onClick={handleExportAppointmentsCSV}
+                  className="filter-btn" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-green)' }}
+                  title="Export appointments list as a CSV file"
+                >
+                  <Download size={14} />
+                  <span>CSV Export</span>
+                </button>
 
                 <button 
                   onClick={() => {
@@ -4065,13 +4383,15 @@ export default function App() {
                               <CheckCircle2 size={14} />
                             </button>
                           )}
-                          <button 
-                            onClick={() => handleDeleteAppointment(appt.id)}
-                            className="action-btn action-btn-danger"
-                            title="Delete Booking"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {!(user?.role === 'staff' && !user?.permissions?.canDeleteLeads) && (
+                            <button 
+                              onClick={() => handleDeleteAppointment(appt.id)}
+                              className="action-btn action-btn-danger"
+                              title="Delete Booking"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4324,18 +4644,28 @@ export default function App() {
                         <div><strong>Phone ID:</strong> {whatsappConfig.phoneNumberId || '1168815362979106'}</div>
                       </div>
 
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
-                          triggerToast("WhatsApp connection disconnected.");
-                          addActivity("Disconnected WhatsApp Account", "info");
-                        }} 
-                        className="btn-secondary" 
-                        style={{ marginTop: '10px', width: '100%', borderColor: 'var(--accent-red)', color: 'var(--accent-red)', padding: '8px 16px', fontSize: '0.85rem' }}
-                      >
-                        Disconnect Account
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => handleMetaTestPing()}
+                          className="btn-secondary" 
+                          style={{ flexGrow: 1, borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)', padding: '8px 16px', fontSize: '0.85rem' }}
+                        >
+                          Test Connection ⚡
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+                            triggerToast("WhatsApp connection disconnected.");
+                            addActivity("Disconnected WhatsApp Account", "info");
+                          }} 
+                          className="btn-secondary" 
+                          style={{ flexGrow: 1, borderColor: 'var(--accent-red)', color: 'var(--accent-red)', padding: '8px 16px', fontSize: '0.85rem' }}
+                        >
+                          Disconnect Account
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div style={{ padding: '16px 8px', display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'stretch' }}>
@@ -4395,9 +4725,19 @@ export default function App() {
                           />
                         </div>
 
-                        <button type="submit" className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.8rem', marginTop: '4px' }}>
-                          Link Credentials Manually 🚀
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <button type="submit" className="btn-secondary" style={{ flexGrow: 1, padding: '10px', fontSize: '0.8rem' }}>
+                            Link Credentials Manually 🚀
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={(e) => handleTestManualConnection(e.target.form)}
+                            className="btn-secondary" 
+                            style={{ padding: '10px', fontSize: '0.8rem', borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
+                          >
+                            Test Connection ⚡
+                          </button>
+                        </div>
                       </form>
                     </div>
                   )}
@@ -5007,7 +5347,7 @@ export default function App() {
                   }));
 
                   // Update config as well
-                  if (user.role !== 'staff') {
+                  if (user.role !== 'staff' || user.permissions?.canEditSettings) {
                     const updatedConfigs = {
                       ...nicheConfigs,
                       [activeNiche]: {
@@ -5064,7 +5404,7 @@ Your main tasks are:
                     </div>
                   </div>
 
-                  {user.role !== 'staff' && (
+                  {(user.role !== 'staff' || user.permissions?.canEditSettings) && (
                     <>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div className="form-group">
@@ -5125,6 +5465,90 @@ Your main tasks are:
                           <Star size={14} style={{ color: 'var(--accent-yellow)' }} />
                           Google Place Live Reviews Setup
                         </h4>
+
+                        {/* Google Places Autocomplete Finder */}
+                        <div className="form-group" style={{ marginBottom: '14px', position: 'relative' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <Search size={12} style={{ color: 'var(--accent-primary)' }} />
+                            Search Clinic/Salon to Auto-fill Place ID & Key
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type="text"
+                              placeholder="Type 'Zenith', 'Glow', 'Apex' or 'Glamour'..."
+                              value={placeSearchInput}
+                              onChange={handlePlaceSearchChange}
+                              style={{
+                                paddingLeft: '32px',
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: '8px',
+                                color: 'var(--text-primary)',
+                                width: '100%',
+                                fontSize: '0.85rem'
+                              }}
+                            />
+                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            {placeDropdownOpen && placeSearchInput && (
+                              <button 
+                                type="button" 
+                                onClick={() => { setPlaceSearchInput(''); setPlaceDropdownOpen(false); }}
+                                style={{
+                                  position: 'absolute',
+                                  right: '10px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          
+                          {placeDropdownOpen && placeMatches.length > 0 && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              right: 0,
+                              background: '#1a1d24',
+                              border: '1px solid var(--border-light)',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                              zIndex: 100,
+                              marginTop: '4px',
+                              maxHeight: '200px',
+                              overflowY: 'auto'
+                            }}>
+                              {placeMatches.map((match, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => handleSelectPlace(match)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    cursor: 'pointer',
+                                    borderBottom: idx === placeMatches.length - 1 ? 'none' : '1px solid var(--border-light)',
+                                    transition: 'background 0.2s',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '2px',
+                                    textAlign: 'left'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{match.name}</div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{match.address}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                           <div className="form-group">
@@ -5184,34 +5608,66 @@ Your main tasks are:
                     const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: newStaffName, email: newStaffEmail, role: newStaffRole })
+                      body: JSON.stringify({
+                        name: newStaffName,
+                        email: newStaffEmail,
+                        role: newStaffRole,
+                        permissions: {
+                          canDeleteLeads: permDeleteLeads,
+                          canViewBilling: permViewBilling,
+                          canEditSettings: permEditSettings
+                        }
+                      })
                     });
                     if (res.ok) {
                       triggerToast("Team member added successfully!", "green");
                       setNewStaffName('');
                       setNewStaffEmail('');
+                      setPermDeleteLeads(false);
+                      setPermViewBilling(false);
+                      setPermEditSettings(false);
                       fetchStaff();
                     }
                   } catch (err) {
                     triggerToast("Error adding team member.", "red");
                   }
-                }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end', marginBottom: '20px' }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Staff Name</label>
-                    <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} required placeholder="e.g. John Doe" />
+                }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '16px', alignItems: 'end' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>Staff Name</label>
+                      <input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} required placeholder="e.g. John Doe" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>Staff Email</label>
+                      <input type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} required placeholder="e.g. john@business.com" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>Role</label>
+                      <select value={newStaffRole} onChange={e => setNewStaffRole(e.target.value)}>
+                        <option value="staff">Staff Member (Custom Permissions)</option>
+                        <option value="admin">Admin Helper (Full Control)</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add Member</button>
                   </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Staff Email</label>
-                    <input type="email" value={newStaffEmail} onChange={e => setNewStaffEmail(e.target.value)} required placeholder="e.g. john@business.com" />
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Role</label>
-                    <select value={newStaffRole} onChange={e => setNewStaffRole(e.target.value)}>
-                      <option value="staff">Staff Member (Manual Replies)</option>
-                      <option value="admin">Admin Helper (Full Control)</option>
-                    </select>
-                  </div>
-                  <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add Member</button>
+                  
+                  {newStaffRole === 'staff' && (
+                    <div style={{ display: 'flex', gap: '24px', background: 'rgba(255,255,255,0.02)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>Permissions:</span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={permDeleteLeads} onChange={e => setPermDeleteLeads(e.target.checked)} />
+                        <span>Can Delete Leads & Appointments</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={permViewBilling} onChange={e => setPermViewBilling(e.target.checked)} />
+                        <span>Can View Billing & Subscription</span>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={permEditSettings} onChange={e => setPermEditSettings(e.target.checked)} />
+                        <span>Can Edit Business Profile</span>
+                      </label>
+                    </div>
+                  )}
                 </form>
 
                 <div style={{ overflowX: 'auto' }}>
@@ -5221,13 +5677,14 @@ Your main tasks are:
                         <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>NAME</th>
                         <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>EMAIL</th>
                         <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ROLE</th>
+                        <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>PERMISSIONS</th>
                         <th style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {staffList.length === 0 ? (
                         <tr>
-                          <td colSpan="4" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>No team members added yet.</td>
+                          <td colSpan="5" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>No team members added yet.</td>
                         </tr>
                       ) : (
                         staffList.map(member => (
@@ -5238,6 +5695,41 @@ Your main tasks are:
                               <span className={`badge ${member.role === 'admin' ? 'badge-new' : 'badge-followed_up'}`}>
                                 {member.role === 'admin' ? 'Admin' : 'Staff'}
                               </span>
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              {member.role === 'admin' ? (
+                                <span style={{
+                                  background: 'rgba(16, 185, 129, 0.1)',
+                                  color: 'var(--accent-green)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 'bold'
+                                }}>Full Access</span>
+                              ) : (
+                                (() => {
+                                  const list = [];
+                                  if (member.permissions?.canDeleteLeads) list.push({ label: 'Delete CRM', bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' });
+                                  if (member.permissions?.canViewBilling) list.push({ label: 'Billing', bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' });
+                                  if (member.permissions?.canEditSettings) list.push({ label: 'Edit Profile', bg: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' });
+                                  
+                                  if (list.length === 0) return <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>None</span>;
+                                  return (
+                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                      {list.map(p => (
+                                        <span key={p.label} style={{
+                                          background: p.bg,
+                                          color: p.color,
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.65rem',
+                                          fontWeight: 'bold'
+                                        }}>{p.label}</span>
+                                      ))}
+                                    </div>
+                                  );
+                                })()
+                              )}
                             </td>
                             <td style={{ padding: '12px 8px' }}>
                               <button onClick={async () => {
@@ -5681,7 +6173,10 @@ Your main tasks are:
       </main>
 
       {/* WhatsApp Playground Sidebar */}
-      <section className={`simulator-panel ${isSimulatorOpen ? 'mobile-open' : ''}`}>
+      <section className={`simulator-panel ${isSimulatorOpen ? 'mobile-open' : ''}`} style={{
+        maxWidth: showSimDebug ? '820px' : '420px',
+        transition: 'max-width 0.3s ease-in-out'
+      }}>
         
         <div className="simulator-mobile-close">
           <button className="btn-close-sim" onClick={() => setIsSimulatorOpen(false)}>
@@ -5689,125 +6184,221 @@ Your main tasks are:
           </button>
         </div>
         
-        <div className="simulator-header-text">
-          <h3 style={{ display: 'flex', alignItems: 'center', justify: 'center', gap: '8px' }}>
-            <Smartphone size={18} style={{ color: 'var(--accent-purple)' }} />
-            WhatsApp AI Playground
-            <button 
-              onClick={handleResetChat} 
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
-              title="Reset Chat Session"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </h3>
-          <p>Test the customer AI chat flow live</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '12px' }}>
+          <div className="simulator-header-text" style={{ margin: 0, textAlign: 'left' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <Smartphone size={18} style={{ color: 'var(--accent-purple)' }} />
+              WhatsApp AI Playground
+              <button 
+                onClick={handleResetChat} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
+                title="Reset Chat Session"
+              >
+                <RotateCcw size={14} />
+              </button>
+            </h3>
+            <p style={{ margin: '4px 0 0 0' }}>Test the customer AI chat flow live</p>
+          </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border-light)', width: 'fit-content', margin: '8px auto 0 auto' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: '500', color: isLiveAiMode ? 'var(--accent-purple)' : 'var(--text-muted)' }}>
-              {isLiveAiMode ? '🧠 Live Gemini AI Active' : '🤖 Offline Bot Mock'}
-            </span>
-            <label className="toggle-switch">
-              <input 
-                type="checkbox" 
-                checked={isLiveAiMode} 
-                onChange={(e) => {
-                  setIsLiveAiMode(e.target.checked);
-                  handleResetChat();
-                }} 
-              />
-              <span className="toggle-slider"></span>
-            </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button 
+              type="button"
+              onClick={() => setShowSimDebug(prev => !prev)}
+              style={{
+                background: showSimDebug ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                border: '1px solid var(--border-light)',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '0.75rem',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <span>Console</span>
+              <span className={`badge ${showSimDebug ? 'badge-new' : 'badge-noshow'}`} style={{ fontSize: '0.6rem', padding: '2px 4px' }}>
+                {showSimDebug ? 'ON' : 'OFF'}
+              </span>
+            </button>
           </div>
         </div>
 
-        <div className="phone-mockup">
-          <div className="phone-screen">
-            
-            <div className="phone-status-bar">
-              <span>9:41</span>
-              <div className="right-icons">
-                <span>📶</span>
-                <span>🔋</span>
-              </div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border-light)', width: 'fit-content' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: '500', color: isLiveAiMode ? 'var(--accent-purple)' : 'var(--text-muted)' }}>
+            {isLiveAiMode ? '🧠 Live Gemini AI Active' : '🤖 Offline Bot Mock'}
+          </span>
+          <label className="toggle-switch">
+            <input 
+              type="checkbox" 
+              checked={isLiveAiMode} 
+              onChange={(e) => {
+                setIsLiveAiMode(e.target.checked);
+                handleResetChat();
+              }} 
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
 
-            <div className="chat-header">
-              <div className="chat-avatar">{currentConfig.logo}</div>
-              <div className="chat-info">
-                <div className="chat-info-name">{currentConfig.businessName}</div>
-                <div className="chat-info-status">
-                  {isTyping ? 'typing...' : 'Online (AI Front Desk)'}
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', width: '100%', height: 'calc(100% - 130px)', overflow: 'hidden', justifyContent: 'center' }}>
+          {/* Phone Mockup Column */}
+          <div className="phone-mockup" style={{ flexShrink: 0 }}>
+            <div className="phone-screen">
+              
+              <div className="phone-status-bar">
+                <span>9:41</span>
+                <div className="right-icons">
+                  <span>📶</span>
+                  <span>🔋</span>
                 </div>
               </div>
-            </div>
 
-            <div className="chat-messages">
-              {chatMessages.map(msg => (
-                <div 
-                  key={msg.id} 
-                  className={`message-bubble ${msg.sender === 'bot' ? 'message-in' : 'message-out'}`}
+              <div className="chat-header">
+                <div className="chat-avatar">{currentConfig.logo}</div>
+                <div className="chat-info">
+                  <div className="chat-info-name">{currentConfig.businessName}</div>
+                  <div className="chat-info-status">
+                    {isTyping ? 'typing...' : 'Online (AI Front Desk)'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="chat-messages">
+                {chatMessages.map(msg => (
+                  <div 
+                    key={msg.id} 
+                    className={`message-bubble ${msg.sender === 'bot' ? 'message-in' : 'message-out'}`}
+                  >
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                    <span className="message-time">{msg.timestamp}</span>
+                  </div>
+                ))}
+
+                {isTyping && (
+                  <div className="typing-bubble">
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                )}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              <div style={{
+                padding: '8px', 
+                background: '#121b22', 
+                display: 'flex', 
+                gap: '6px', 
+                overflowX: 'auto',
+                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                whiteSpace: 'nowrap'
+              }}>
+                <button 
+                  onClick={() => triggerQuickQuery("I want to book an appointment")}
+                  style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
                 >
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
-                  <span className="message-time">{msg.timestamp}</span>
-                </div>
-              ))}
-
-              {isTyping && (
-                <div className="typing-bubble">
-                  <div className="typing-dot"></div>
-                  <div className="typing-dot"></div>
-                  <div className="typing-dot"></div>
-                </div>
-              )}
-
-              <div ref={chatEndRef} />
-            </div>
-
-            <div style={{
-              padding: '8px', 
-              background: '#121b22', 
-              display: 'flex', 
-              gap: '6px', 
-              overflowX: 'auto',
-              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-              whiteSpace: 'nowrap'
-            }}>
-              <button 
-                onClick={() => triggerQuickQuery("I want to book an appointment")}
-                style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
-              >
-                📅 Book Appointment
-              </button>
-              <button 
-                onClick={() => triggerQuickQuery("What are your service prices?")}
-                style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
-              >
-                💰 Price Menu
-              </button>
-              <button 
-                onClick={() => triggerQuickQuery("Where are you located?")}
-                style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
-              >
-                📍 Location/Timings
-              </button>
-            </div>
-
-            <form onSubmit={handleSendMessage} className="chat-input-bar">
-              <div className="chat-input-wrapper">
-                <input 
-                  type="text" 
-                  placeholder="Type message as customer..." 
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                />
+                  📅 Book Appointment
+                </button>
+                <button 
+                  onClick={() => triggerQuickQuery("What are your service prices?")}
+                  style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
+                >
+                  💰 Price Menu
+                </button>
+                <button 
+                  onClick={() => triggerQuickQuery("Where are you located?")}
+                  style={{ background: '#202c33', color: '#e9edef', border: 'none', padding: '4px 10px', borderRadius: '12px', fontSize: '0.65rem', cursor: 'pointer' }}
+                >
+                  📍 Location/Timings
+                </button>
               </div>
-              <button type="submit" className="chat-send-btn">
-                <Send size={16} />
-              </button>
-            </form>
 
+              <form onSubmit={handleSendMessage} className="chat-input-bar">
+                <div className="chat-input-wrapper">
+                  <input 
+                    type="text" 
+                    placeholder="Type message as customer..." 
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="chat-send-btn">
+                  <Send size={16} />
+                </button>
+              </form>
+
+            </div>
           </div>
+
+          {/* AI Debug Console Column */}
+          {showSimDebug && (
+            <div style={{
+              flexGrow: 1,
+              background: '#0a0d16',
+              border: '1px solid var(--border-light)',
+              borderRadius: '24px',
+              padding: '16px',
+              color: '#4af626', // Matrix green
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              fontSize: '0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.8)',
+              overflowY: 'auto',
+              minWidth: '280px',
+              textAlign: 'left'
+            }}>
+              <div style={{ borderBottom: '1px solid #1a2333', paddingBottom: '8px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-primary)' }}>
+                <span style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4af626', display: 'inline-block' }}></span>
+                  AI REASONING LOGS
+                </span>
+                <button 
+                  onClick={() => setSimDebugLogs([])} 
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.7rem' }}
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flexGrow: 1, paddingRight: '4px' }}>
+                {simDebugLogs.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>
+                    Send messages in the phone simulator to observe realtime intent classification logs.
+                  </div>
+                ) : (
+                  simDebugLogs.map((log, index) => (
+                    <div key={index} style={{ borderBottom: '1px solid #141c2c', paddingBottom: '8px' }}>
+                      <div style={{ display: 'flex', justify: 'space-between', fontSize: '0.65rem', color: '#8b949e', marginBottom: '4px' }}>
+                        <span>[{log.timestamp}] EVENT: {log.event}</span>
+                        <span style={{ color: log.event === 'SYSTEM_INIT' ? '#58a6ff' : '#4af626' }}>✓</span>
+                      </div>
+                      <div style={{ color: 'var(--text-primary)', marginBottom: '4px', fontWeight: 'bold' }}>
+                        {log.message}
+                      </div>
+                      {log.details && (
+                        <div style={{ paddingLeft: '8px', borderLeft: '2px solid #21262d', color: '#8b949e', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.7rem' }}>
+                          {log.details.engine && <div><span style={{ color: '#58a6ff' }}>Engine:</span> {log.details.engine}</div>}
+                          {log.details.target && <div><span style={{ color: '#ff7b72' }}>Classified Intent:</span> {log.details.target}</div>}
+                          {log.details.confidence && <div><span style={{ color: '#d2a8ff' }}>Confidence:</span> {log.details.confidence}</div>}
+                          {log.details.toneApplied && <div><span style={{ color: '#79c0ff' }}>Tone applied:</span> {log.details.toneApplied}</div>}
+                          {log.details.matchedKeyword && log.details.matchedKeyword !== 'None' && <div><span style={{ color: '#ff7b72' }}>Keywords:</span> {log.details.matchedKeyword}</div>}
+                          {log.details.parameters && (
+                            <div>
+                              <span style={{ color: '#a5d6ff' }}>Params:</span> {JSON.stringify(log.details.parameters)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
       </section>

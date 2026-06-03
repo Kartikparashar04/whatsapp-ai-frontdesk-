@@ -1934,3 +1934,15 @@ input:checked + .toggle-slider:before {
     height: calc(100vh - 60px);
   }
 }
+
+/* Wide Simulator Console layout rules */
+@media (min-width: 901px) {
+  .app-container.sim-debug-open {
+    grid-template-columns: 260px 1fr 760px;
+  }
+}
+@media (max-width: 1200px) and (min-width: 901px) {
+  .app-container.sim-debug-open {
+    grid-template-columns: 80px 1fr 760px;
+  }
+}
