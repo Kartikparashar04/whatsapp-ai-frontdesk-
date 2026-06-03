@@ -3433,16 +3433,7 @@ export default function App() {
                     <span>AI Knowledge Base</span>
                   </button>
                 </li>
-                <li>
-                  <button 
-                    onClick={() => { setActiveTab('rewards'); setIsMobileMenuOpen(false); }}
-                    className={`menu-item ${activeTab === 'rewards' ? 'active' : ''}`}
-                    style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
-                  >
-                    <Star size={18} style={{ color: 'var(--accent-yellow)' }} />
-                    <span>Google Reviews</span>
-                  </button>
-                </li>
+
                 <li>
                   <button 
                     onClick={() => { setActiveTab('campaigns'); setIsMobileMenuOpen(false); }}
@@ -3728,6 +3719,50 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              {/* Google Reviews */}
+              <div id="google-reviews-panel" className="glass-panel" style={{ gridColumn: 'span 2', padding: '0', overflow: 'hidden', marginTop: '12px' }}>
+                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Star size={18} style={{ color: 'var(--accent-yellow)' }} />
+                    Live Google Reviews
+                  </h3>
+                  <span className="badge badge-converted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {!googleStats.isMock && <span className="pulse-dot" style={{ width: '6px', height: '6px', backgroundColor: 'var(--accent-green)' }}></span>}
+                    {googleStats.isMock ? 'Demo Mode' : 'Live Sync'}
+                  </span>
+                </div>
+                <div className="panel-body">
+                  <div className="activity-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                    {googleStats.reviews && googleStats.reviews.length > 0 ? (
+                      googleStats.reviews.map((rev, index) => (
+                        <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{rev.author_name}</span>
+                            <span className="badge badge-converted" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(66, 133, 244, 0.1)', color: '#4285f4' }}>
+                              Google Review
+                            </span>
+                          </div>
+                          {rev.rating > 0 && (
+                            <div className="star-rating">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} size={12} fill={i < rev.rating ? 'var(--accent-yellow)' : 'transparent'} style={{ color: 'var(--accent-yellow)' }} />
+                              ))}
+                            </div>
+                          )}
+                          {rev.text && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>"{rev.text}"</p>}
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Review Date: {new Date(rev.time * 1000).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        No Google reviews synced yet. Complete setup in profile to pull live reviews.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
             </div>
 
@@ -3741,7 +3776,10 @@ export default function App() {
                 </p>
               </div>
               <button 
-                onClick={() => setActiveTab('rewards')}
+                onClick={() => {
+                  const el = document.getElementById('google-reviews-panel');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
                 className="btn-primary" 
                 style={{ marginLeft: 'auto', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
@@ -4427,62 +4465,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 5: Reviews */}
-        {activeTab === 'rewards' && (
-          <div className="tab-content" style={{ position: 'relative' }}>
-            {!hasActivePlan && renderLockOverlay('Google Reviews Sync')}
-            
-            <div className="dashboard-details-grid" style={{ gridTemplateColumns: '1fr' }}>
-              
-              {/* Reviews */}
-              <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Star size={18} style={{ color: 'var(--accent-yellow)' }} />
-                    Live Google Reviews
-                  </h3>
-                  <span className="badge badge-converted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {!googleStats.isMock && <span className="pulse-dot" style={{ width: '6px', height: '6px', backgroundColor: 'var(--accent-green)' }}></span>}
-                    {googleStats.isMock ? 'Demo Mode' : 'Live Sync'}
-                  </span>
-                </div>
-                <div className="panel-body">
-                  <div className="activity-list" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                    {googleStats.reviews && googleStats.reviews.length > 0 ? (
-                      googleStats.reviews.map((rev, index) => (
-                        <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{rev.author_name}</span>
-                            <span className="badge badge-converted" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(66, 133, 244, 0.1)', color: '#4285f4' }}>
-                              Google Review
-                            </span>
-                          </div>
-                          {rev.rating > 0 && (
-                            <div className="star-rating">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} size={12} fill={i < rev.rating ? 'var(--accent-yellow)' : 'transparent'} style={{ color: 'var(--accent-yellow)' }} />
-                              ))}
-                            </div>
-                          )}
-                          {rev.text && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>"{rev.text}"</p>}
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            Review Date: {new Date(rev.time * 1000).toLocaleDateString()}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        No Google reviews synced yet. Complete setup in profile to pull live reviews.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
 
-            </div>
-
-          </div>
-        )}
 
         {/* Tab 5.5: Billing & Subscription */}
         {activeTab === 'billing' && (
