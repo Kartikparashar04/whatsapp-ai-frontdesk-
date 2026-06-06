@@ -1141,7 +1141,7 @@ export default function App() {
     }
   };
 
-  // Payments: Trigger Razorpay Checkout for SaaS Plans (₹999/mo Starter or ₹2,499/mo Pro)
+  // Payments: Trigger Razorpay Checkout for SaaS Plans (₹2/mo Starter or ₹2,499/mo Pro)
   const handlePayment = async (planType = 'starter') => {
     if (!user) {
       triggerToast("You must be logged in to activate a plan.", "red");
@@ -1149,7 +1149,7 @@ export default function App() {
     }
     
     const isPro = planType === 'pro';
-    const amount = isPro ? 2499 : 999;
+    const amount = isPro ? 2499 : 2;
     const planName = isPro ? "SaaS Pro Plan Subscription" : "SaaS Starter Plan Subscription";
     
     setIsPaymentLoading(true);
@@ -4908,7 +4908,7 @@ export default function App() {
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>Perfect for growing local businesses seeking automated client capture.</p>
                     
                     <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '24px' }}>
-                      <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹999</span>
+                      <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-primary)' }}>₹2</span>
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>/ month</span>
                     </div>
                     
@@ -5085,7 +5085,7 @@ export default function App() {
                           SaaS {user.subscriptionPlan === 'pro' ? 'Pro Plan' : 'Starter Plan'} Monthly Subscription
                         </td>
                         <td style={{ padding: '12px 8px', fontWeight: '700' }}>
-                          {user.subscriptionPlan === 'pro' ? '₹2,499.00' : '₹999.00'}
+                          {user.subscriptionPlan === 'pro' ? '₹2,499.00' : '₹2.00'}
                         </td>
                         <td style={{ padding: '12px 8px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
                           pay_rzp_{user.trialStart ? new Date(user.trialStart).getTime().toString().slice(-6) : '99812'}
@@ -5226,8 +5226,8 @@ export default function App() {
                         </h4>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                           {user.isSubscribed 
-                            ? `Next Billing: July 2, 2026 (₹999/mo)` 
-                            : 'Access WhatsApp AI Engine (₹999/mo)'}
+                            ? `Next Billing: July 2, 2026 (₹2/mo)` 
+                            : 'Access WhatsApp AI Engine (₹2/mo)'}
                         </p>
                       </div>
                       
@@ -5275,7 +5275,7 @@ export default function App() {
                             onMouseOut={(e) => { e.currentTarget.style.boxShadow = '0 4px 10px 0 rgba(0, 118, 255, 0.25)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                           >
                             <Sparkles size={12} />
-                            {isPaymentLoading ? '...' : 'Pay ₹999'}
+                            {isPaymentLoading ? '...' : 'Pay ₹2'}
                           </button>
                         )}
                       </div>
