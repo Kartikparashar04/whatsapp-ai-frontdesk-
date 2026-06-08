@@ -582,6 +582,54 @@ app.post('/v1/meta-test-ping', checkAuth, async (req, res) => {
 });
 
 /**
+ * 3f. POST Send campaign WhatsApp message to a single contact
+ */
+app.post('/v1/campaigns/send-single', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.ownerEmail;
+    const { name, phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ success: false, error: 'Phone and message are required' });
+    }
+
+    const profile = await getProfileByEmail(emailKey);
+    // Send real message
+    await sendWhatsAppMessage(phone, message, profile);
+
+    // Save message to conversation history
+    if (db) {
+      // Find or create conversation
+      let conv = await db.get('SELECT id FROM conversations WHERE customer_phone = ? AND owner_email = ?', phone, emailKey);
+      let convId;
+      if (conv) {
+        convId = conv.id;
+        await db.run(
+          'UPDATE conversations SET last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          message, convId
+        );
+      } else {
+        convId = 'conv-' + Date.now();
+        await db.run(
+          'INSERT INTO conversations (id, owner_email, customer_name, customer_phone, last_message, status) VALUES (?, ?, ?, ?, ?, ?)',
+          convId, emailKey, name, phone, message, 'ai'
+        );
+      }
+      
+      const msgId = 'msg-' + Date.now();
+      await db.run(
+        'INSERT INTO messages (id, conversation_id, sender, message_text) VALUES (?, ?, ?, ?)',
+        msgId, convId, 'bot', message
+      );
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error('Error sending campaign message:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * 3g. POST Load demo data for previewing Dashboard widgets
  */
 app.post('/v1/load-demo-data', checkAuth, async (req, res) => {
@@ -1413,6 +1461,7 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
     console.log('Message sent successfully. Message ID:', response.data.messages[0].id);
   } catch (error) {
     console.error('Meta Graph API Error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.error?.message || error.message);
   }
 }
 

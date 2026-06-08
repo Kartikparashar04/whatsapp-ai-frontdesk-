@@ -4504,10 +4504,29 @@ export default function App() {
                     playAudioSfx('send');
                     let delay = 1000;
                     targets.forEach((t, i) => {
-                      setTimeout(() => {
+                      setTimeout(async () => {
                         const filledMsg = msg.replace("{{name}}", t.name);
-                        logs.innerHTML += `📲 [${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}] Sent WhatsApp message to ${t.name} (${t.phone}): <span style="color: var(--accent-green)">SUCCESS</span><br/>`;
-                        addActivity(`Campaign broadcast sent to ${t.name}`, 'info');
+                        try {
+                          const res = await authenticatedFetch(`${BACKEND_URL}/v1/campaigns/send-single`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: t.name,
+                              phone: t.phone,
+                              message: filledMsg
+                            })
+                          });
+                          
+                          if (res.ok) {
+                            logs.innerHTML += `📲 [${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}] Sent WhatsApp message to ${t.name} (${t.phone}): <span style="color: var(--accent-green)">SUCCESS</span><br/>`;
+                            addActivity(`Campaign broadcast sent to ${t.name}`, 'info');
+                          } else {
+                            const errData = await res.json();
+                            logs.innerHTML += `📲 [${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}] Sent WhatsApp message to ${t.name} (${t.phone}): <span style="color: var(--accent-red)">FAILED (${errData.error || 'Server error'})</span><br/>`;
+                          }
+                        } catch (err) {
+                          logs.innerHTML += `📲 [${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}] Sent WhatsApp message to ${t.name} (${t.phone}): <span style="color: var(--accent-red)">FAILED (${err.message})</span><br/>`;
+                        }
                         
                         if (i === targets.length - 1) {
                           setTimeout(() => {
