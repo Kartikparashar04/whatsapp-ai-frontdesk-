@@ -1690,12 +1690,12 @@ export default function App() {
 
     let authUser = null;
 
-    if (email.trim().toLowerCase() === 'admin@frontdesk.com') {
-      if (password === 'admin123') {
+    if (email.trim().toLowerCase() === 'kartikparashar15@gmail.com') {
+      if (password === 'Kartik@04') {
         authUser = {
           name: 'SaaS Super Admin',
-          email: 'admin@frontdesk.com',
-          avatar: 'A',
+          email: 'kartikparashar15@gmail.com',
+          avatar: 'K',
           role: 'admin',
           isOnboarded: true
         };
@@ -2491,25 +2491,6 @@ export default function App() {
                 <AlertTriangle size={12} /> Firebase Demo Mode Active:
               </p>
               Real SMS OTP verification requires Firebase credentials. You can enter any phone number and use verification code <code style={{ color: 'white', fontWeight: 'bold' }}>123456</code> to test login.
-            </div>
-          )}
-
-          {/* Test credentials warning for Admin Only */}
-          {authMode === 'admin_login' && (
-            <div style={{
-              background: 'rgba(139, 92, 246, 0.06)',
-              border: '1px solid rgba(139, 92, 246, 0.15)',
-              borderRadius: '10px',
-              padding: '12px',
-              marginBottom: '16px',
-              fontSize: '0.75rem',
-              lineHeight: '1.4',
-              color: 'var(--text-secondary)'
-            }}>
-              <p style={{ fontWeight: '700', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                <Shield size={12} /> SaaS Administrator Login:
-              </p>
-              Email: <code style={{ color: 'white' }}>admin@frontdesk.com</code> | Password: <code style={{ color: 'white' }}>admin123</code>
             </div>
           )}
 
