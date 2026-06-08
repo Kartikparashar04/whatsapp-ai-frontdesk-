@@ -544,7 +544,8 @@ export default function App() {
   ]);
 
   // Chat Simulator State
-  const currentConfig = nicheConfigs[activeNiche];
+  const loadedEmailRef = useRef('');
+  const currentConfig = (nicheConfigs && nicheConfigs[activeNiche]) || NICHE_CONFIGS[activeNiche] || NICHE_CONFIGS.dental;
   const [chatMessages, setChatMessages] = useState([]);
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -781,6 +782,9 @@ export default function App() {
       const localWaConfig = localStorage.getItem(`frontdesk_wa_config_${emailKey}`);
       setWhatsappConfig(localWaConfig ? JSON.parse(localWaConfig) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
       
+      // Update loaded email reference
+      loadedEmailRef.current = emailKey;
+      
       // Fetch live Google reviews
       fetchGoogleReviews(user);
     } else {
@@ -791,6 +795,7 @@ export default function App() {
       setNicheConfigs(NICHE_CONFIGS);
       setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
       setGoogleStats({ rating: 4.8, totalReviews: 128, reviews: [], isMock: true });
+      loadedEmailRef.current = '';
     }
   }, [user]);
 
@@ -814,15 +819,15 @@ export default function App() {
     }(document, 'script', 'facebook-jssdk'));
   }, []);
 
-  // LocalStorage Synchronizers (scoped by user email)
+  // LocalStorage Synchronizers (scoped by user email, with safety guards)
   useEffect(() => {
-    if (user && user.email) {
+    if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
       localStorage.setItem(`frontdesk_leads_${user.email.toLowerCase()}`, JSON.stringify(leads));
     }
   }, [leads, user]);
 
   useEffect(() => {
-    if (user && user.email) {
+    if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
       localStorage.setItem(`frontdesk_appts_${user.email.toLowerCase()}`, JSON.stringify(appointments));
     }
   }, [appointments, user]);
@@ -830,19 +835,22 @@ export default function App() {
   // Referrals local storage effect removed
 
   useEffect(() => {
-    if (user && user.email) {
+    if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
       localStorage.setItem(`frontdesk_reviews_${user.email.toLowerCase()}`, JSON.stringify(reviews));
     }
   }, [reviews, user]);
 
   useEffect(() => {
-    if (user && user.email) {
-      localStorage.setItem(`frontdesk_configs_${user.email.toLowerCase()}`, JSON.stringify(nicheConfigs));
+    if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
+      // Only write configs if it is a valid object containing niche keys
+      if (nicheConfigs && nicheConfigs.dental && nicheConfigs.salon) {
+        localStorage.setItem(`frontdesk_configs_${user.email.toLowerCase()}`, JSON.stringify(nicheConfigs));
+      }
     }
   }, [nicheConfigs, user]);
 
   useEffect(() => {
-    if (user && user.email) {
+    if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
       localStorage.setItem(`frontdesk_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
       
       // Auto-sync WhatsApp config and phone ID to backend profiles mapping
