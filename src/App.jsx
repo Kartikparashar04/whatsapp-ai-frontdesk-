@@ -2907,6 +2907,26 @@ export default function App() {
             )}
           </p>
         </div>
+
+        {/* Public compliance links for Meta API review */}
+        <div style={{
+          position: 'absolute',
+          bottom: '20px',
+          left: '0',
+          right: '0',
+          textAlign: 'center',
+          fontSize: '0.75rem',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '16px',
+          zIndex: 10
+        }}>
+          <span>&copy; 2026 DeskFlow AI. All rights reserved.</span>
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: '500' }}>Privacy Policy</a>
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: '500' }}>Terms of Service</a>
+        </div>
       </div>
     );
   }
