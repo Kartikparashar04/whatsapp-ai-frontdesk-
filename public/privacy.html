@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - DeskFlow AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0b10;
+            --bg-secondary: #12131a;
+            --border-light: rgba(255, 255, 255, 0.07);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-purple: #8b5cf6;
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(139, 92, 246, 0.06) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 60px auto;
+            padding: 40px;
+            background: rgba(18, 19, 26, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-light);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 0;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #ffffff 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 15px;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-top: 30px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 1.4rem;
+            background: var(--accent-purple);
+            border-radius: 2px;
+        }
+
+        p, li {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+
+        ul {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .contact-box {
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 40px;
+        }
+
+        .contact-box p {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        a {
+            color: var(--accent-purple);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <div class="subtitle">Effective Date: June 10, 2026 | Last Updated: June 10, 2026</div>
+
+        <p>Welcome to <strong>DeskFlow AI</strong> (accessible via our app portal and API endpoints). We value your privacy and are committed to protecting your personal data. This Privacy Policy outlines how we collect, use, process, and safeguard information when you use our SaaS platform, CRM, and automated WhatsApp business integration services.</p>
+
+        <h2>1. Information We Collect</h2>
+        <p>We collect information to provide and improve our services, communicate with you, and secure our platform. This includes:</p>
+        <ul>
+            <li><strong>Account & Registration Information:</strong> Your name, business name, phone number, email address, and payment integration credentials (such as subscription status) when you register on our platform.</li>
+            <li><strong>Communication Data (WhatsApp Webhooks):</strong> When you link your WhatsApp Business Account via the Meta Cloud API, we process incoming messages, customer phone numbers, customer names, and message payloads transmitted to our webhooks.</li>
+            <li><strong>AI Settings & Knowledge Base:</strong> The custom services list, FAQs, system prompts, Google Place IDs, and other files you upload to train the AI Front Desk assistant.</li>
+        </ul>
+
+        <h2>2. How We Process Your Information</h2>
+        <p>We process your data for the following essential business purposes:</p>
+        <ul>
+            <li>To operate and maintain the DeskFlow AI Front Desk, CRM pipeline, and booking calendars.</li>
+            <li>To generate automated replies using secure artificial intelligence models (such as Google Gemini APIs) and send messages back to customers via the Meta WhatsApp Cloud API.</li>
+            <li>To monitor for server conflicts, schedule slots accurately, and manage referral discount codes.</li>
+        </ul>
+
+        <h2>3. Third-Party Data Transmission</h2>
+        <p>In order to provide our core AI-powered communication service, we share and transmit data to the following verified subprocessors:</p>
+        <ul>
+            <li><strong>Meta Platforms, Inc. (WhatsApp Business Cloud API):</strong> To receive incoming webhooks and dispatch outbound WhatsApp replies, notifications, and broadcast campaigns.</li>
+            <li><strong>Google LLC (Gemini API & Google Places API):</strong> To analyze customer intent, parse lead details (name, budget, locations), generate response scripts, and fetch real-time Google Reviews.</li>
+            <li><strong>Razorpay Software Pvt. Ltd.:</strong> To securely process SaaS subscription billing and trial upgrades (payment data is processed directly by Razorpay under industry standards).</li>
+        </ul>
+        <p>We do NOT sell, rent, or trade your personal or communication data to any third-party marketing companies.</p>
+
+        <h2>4. Data Security and Retention</h2>
+        <p>Your business records, staff listings, leads, and appointments are stored inside a secure database instance. We retain this data as long as your business account is active or as required to fulfill services. If you request account deletion or if your account is suspended, all associated records will be permanently removed from our active databases.</p>
+
+        <h2>5. WhatsApp Opt-Out & Compliance</h2>
+        <p>End customers communicating with businesses powered by DeskFlow AI can opt out of automated notifications or marketing campaigns at any time by replying with standard keywords (e.g., "STOP", "UNSUBSCRIBE"). Businesses using our platform must comply with the Meta WhatsApp Business Terms of Service and are responsible for obtaining explicit consent before sending broadcast campaigns.</p>
+
+        <h2>6. Your Rights</h2>
+        <p>You have the right to access, correct, update, or request the deletion of your personal data stored on our platform. You can do this directly from your "My Profile" settings panel or by contacting us.</p>
+
+        <div class="contact-box">
+            <h2>Contact Us</h2>
+            <p>If you have any questions about this Privacy Policy or data processing, please reach out to us at:</p>
+            <p style="margin-top: 10px; font-weight: bold; font-family: var(--font-display);">Email: <a href="mailto:kartikparashar15@gmail.com">kartikparashar15@gmail.com</a></p>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 DeskFlow AI. All rights reserved. | <a href="/terms.html">Terms of Service</a>
+        </div>
+    </div>
+</body>
+</html>

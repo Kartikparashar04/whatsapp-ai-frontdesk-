@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - DeskFlow AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0b10;
+            --bg-secondary: #12131a;
+            --border-light: rgba(255, 255, 255, 0.07);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-purple: #8b5cf6;
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(139, 92, 246, 0.06) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 60px auto;
+            padding: 40px;
+            background: rgba(18, 19, 26, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-light);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 0;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #ffffff 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 15px;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-top: 30px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 1.4rem;
+            background: var(--accent-purple);
+            border-radius: 2px;
+        }
+
+        p, li {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+
+        ul {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .contact-box {
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 40px;
+        }
+
+        .contact-box p {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        a {
+            color: var(--accent-purple);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Terms of Service</h1>
+        <div class="subtitle">Effective Date: June 10, 2026 | Last Updated: June 10, 2026</div>
+
+        <p>By registering, accessing, or using the <strong>DeskFlow AI</strong> platform, dashboards, APIs, or messaging integrations, you agree to comply with and be bound by these Terms of Service. Please read them carefully.</p>
+
+        <h2>1. Services Provided</h2>
+        <p>DeskFlow AI provides an AI-powered conversational front desk reception dashboard that integrates with the Meta WhatsApp Business Cloud API. The service includes automated customer lead capture, appointment calendar slot coordination, staff role permission management, analytics reports, and Google Place reviews synchronizations.</p>
+
+        <h2>2. Account Registration and Security</h2>
+        <ul>
+            <li>You must register a valid account using Firebase authentication credentials to access our dashboard.</li>
+            <li>You are responsible for maintaining the confidentiality of your account credentials (passwords, OTPs) and for all activities that occur under your account.</li>
+            <li>You agree to notify us immediately at <a href="mailto:kartikparashar15@gmail.com">kartikparashar15@gmail.com</a> if you suspect any unauthorized access or security breach.</li>
+        </ul>
+
+        <h2>3. WhatsApp Business Policy Compliance</h2>
+        <p>Businesses connecting their custom WhatsApp lines to our platform must adhere strictly to the following rules:</p>
+        <ul>
+            <li><strong>Meta Developer Agreement:</strong> You must comply with all Meta Platforms, Inc. WhatsApp Business Terms and Policies. Violations of Meta policies may result in your WhatsApp line suspension by Meta.</li>
+            <li><strong>Consent & Spam:</strong> You must not send spam, unsolicited marketing messages, or unsolicited broadcasts via the WhatsApp campaign module. You must ensure you have active opt-in consent from customers before transmitting notifications.</li>
+            <li><strong>Content Restrictions:</strong> You shall not transmit messages that are illegal, fraudulent, harmful, or violate third-party rights.</li>
+        </ul>
+
+        <h2>4. Subscription Billing, Payments, and Cancellations</h2>
+        <ul>
+            <li><strong>Pricing plans:</strong> Services are billed on a recurring monthly subscription basis (e.g. Starter Plan). All transactions are securely processed via Razorpay integrations.</li>
+            <li><strong>Free Trial:</strong> New users may receive a trial period. Upon expiry, a valid paid subscription plan must be activated to maintain active services.</li>
+            <li><strong>Cancellation:</strong> You can cancel your subscription plan at any time through the Billing & Subscription panel. Cancellation will terminate active services at the end of the current billing cycle.</li>
+        </ul>
+
+        <h2>5. Account Suspension and Termination</h2>
+        <p>We reserve the right to suspend or terminate your access to the DeskFlow AI platform at our sole discretion, without prior notice, if we find that you have breached these Terms of Service, violated Meta WhatsApp policies, or engaged in fraudulent activities.</p>
+
+        <h2>6. Limitation of Liability</h2>
+        <p>DeskFlow AI is provided "as is" and "as available". We do not guarantee uninterrupted or error-free operations. We are not liable for any service interruptions caused by third-party failures (including Meta Graph API downtimes, Firebase Authentication delays, or Google Cloud server issues), nor for any loss of database records, business leads, or client bookings.</p>
+
+        <h2>7. Changes to Terms</h2>
+        <p>We reserve the right to modify these Terms of Service at any time. Any changes will be updated on this page with an updated effective date. Continued usage of the platform constitutes agreement to the updated Terms.</p>
+
+        <div class="contact-box">
+            <h2>Contact Us</h2>
+            <p>If you have any questions or require support regarding these Terms of Service, please contact us at:</p>
+            <p style="margin-top: 10px; font-weight: bold; font-family: var(--font-display);">Email: <a href="mailto:kartikparashar15@gmail.com">kartikparashar15@gmail.com</a></p>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 DeskFlow AI. All rights reserved. | <a href="/privacy.html">Privacy Policy</a>
+        </div>
+    </div>
+</body>
+</html>
