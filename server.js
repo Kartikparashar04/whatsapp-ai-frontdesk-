@@ -379,6 +379,14 @@ app.get('/privacy', (req, res) => {
   `);
 });
 
+app.get('/privacy.html', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'privacy.html'));
+});
+
+app.get('/terms.html', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'terms.html'));
+});
+
 /**
  * 1. Webhook Verification (Required by Meta when you save callback URL)
  */
