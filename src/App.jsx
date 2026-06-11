@@ -1309,16 +1309,8 @@ export default function App() {
   // Auth: Recaptcha verification setup
   const setupRecaptcha = () => {
     try {
-      // Clear the element and existing verifier to prevent "already rendered" error!
-      const container = document.getElementById('recaptcha-container');
-      if (container) {
-        container.innerHTML = '';
-      }
       if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = null;
+        return window.recaptchaVerifier;
       }
       
       const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
@@ -2731,9 +2723,6 @@ export default function App() {
             </>
           ) : (
             <>
-              {/* Invisible container for Firebase ReCAPTCHA */}
-              <div id="recaptcha-container"></div>
-
               {authMethod === 'phone' ? (
                 <>
                   {!otpSent ? (
