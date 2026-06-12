@@ -1,3 +1,4 @@
+// Deploy status: Auto-deploy configured via GitHub Actions
 import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
