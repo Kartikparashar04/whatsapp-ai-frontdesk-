@@ -1347,6 +1347,22 @@ export default function App() {
 
     try {
       setIsAuthLoading(true);
+
+      // Check if user already exists in DB if in signup mode
+      if (authMode === 'signup') {
+        const checkRes = await fetch(`${BACKEND_URL}/v1/check-user-exists`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phoneNumber })
+        });
+        const checkData = await checkRes.json();
+        if (checkData.exists) {
+          setIsAuthLoading(false);
+          alert("This phone number is already registered. Please sign in instead!");
+          return;
+        }
+      }
+
       const appVerifier = setupRecaptcha();
       if (!appVerifier) {
         throw new Error("Failed to initialize Recaptcha.");
@@ -1462,6 +1478,20 @@ export default function App() {
 
     try {
       setIsAuthLoading(true);
+
+      // Check if user already exists in DB
+      const checkRes = await fetch(`${BACKEND_URL}/v1/check-user-exists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const checkData = await checkRes.json();
+      if (checkData.exists) {
+        setIsAuthLoading(false);
+        alert("This email address is already registered. Please sign in instead!");
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       
@@ -1472,7 +1502,11 @@ export default function App() {
     } catch (error) {
       setIsAuthLoading(false);
       console.error("Error creating email account:", error);
-      alert("Registration error: " + error.message);
+      if (error.code === 'auth/email-already-in-use' || error.message.includes('email-already-in-use')) {
+        alert("This email address is already registered. Please sign in instead!");
+      } else {
+        alert("Registration error: " + error.message);
+      }
     }
   };
 

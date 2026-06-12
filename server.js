@@ -881,6 +881,39 @@ app.get('/v1/google-reviews', checkAuth, async (req, res) => {
   }
 });
 
+app.post('/v1/check-user-exists', async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+    if (!db) {
+      return res.status(500).json({ exists: false, error: 'Database is not initialized.' });
+    }
+
+    if (email) {
+      const emailLower = email.toLowerCase().trim();
+      const user = await db.get('SELECT email FROM users WHERE LOWER(email) = ?', emailLower);
+      const profile = await db.get('SELECT email FROM business_profiles WHERE LOWER(email) = ?', emailLower);
+      if (user || profile) {
+        return res.status(200).json({ exists: true, type: 'email' });
+      }
+    }
+
+    if (phone) {
+      const phoneClean = phone.replace(/\s+/g, '').replace('+', '').trim();
+      if (phoneClean) {
+        const user = await db.get('SELECT phone FROM users WHERE phone LIKE ?', `%${phoneClean}%`);
+        const profile = await db.get('SELECT business_phone FROM business_profiles WHERE business_phone LIKE ?', `%${phoneClean}%`);
+        if (user || profile) {
+          return res.status(200).json({ exists: true, type: 'phone' });
+        }
+      }
+    }
+
+    return res.status(200).json({ exists: false });
+  } catch (err) {
+    return res.status(500).json({ exists: false, error: err.message });
+  }
+});
+
 /**
  * 3b. Receive user registration/login event and store credentials in SQLite DB
  */
