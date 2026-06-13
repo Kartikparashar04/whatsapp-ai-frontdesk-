@@ -1110,12 +1110,22 @@ export default function App() {
 
     // Fetch the actual profile from the backend SQLite DB to get the latest database data
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (!firebaseConfig.apiKey.includes("ChangeMe") && auth.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken(true);
+          headers['Authorization'] = `Bearer ${token}`;
+        } catch (tokenErr) {
+          console.error("Error getting user ID token:", tokenErr);
+          headers['Authorization'] = `Bearer ${authUser.email}`;
+        }
+      } else {
+        headers['Authorization'] = `Bearer ${authUser.email}`;
+      }
+
       const res = await fetch(`${BACKEND_URL}/v1/business-profile`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authUser.email}`,
-          'Content-Type': 'application/json'
-        }
+        headers: headers
       });
       
       if (res.ok) {
