@@ -147,6 +147,37 @@ const playAudioSfx = (type) => {
   }
 };
 
+// Validation Helper Functions
+const validatePhoneNumber = (phone) => {
+  if (!phone) return false;
+  const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+  const phoneRegex = /^\+[1-9]\d{9,14}$/;
+  return phoneRegex.test(cleanPhone);
+};
+
+const validateEmailAddress = (email) => {
+  if (!email) return false;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email.trim());
+};
+
+const validateFullName = (name) => {
+  if (!name) return false;
+  const nameRegex = /^[a-zA-Z\s\.\-']{2,50}$/;
+  return nameRegex.test(name.trim());
+};
+
+const validateUrl = (url) => {
+  if (!url) return false;
+  const urlRegex = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/;
+  return urlRegex.test(url.trim());
+};
+
+const validateNumericId = (id) => {
+  if (!id) return false;
+  return /^\d{10,20}$/.test(id.trim());
+};
+
 // MULTI-STEP ONBOARDING WIZARD COMPONENT
 function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, triggerToast, addActivity, authenticatedFetch }) {
   const [step, setStep] = React.useState(1);
@@ -168,17 +199,24 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
 
   const handleNext = () => {
     if (step === 1) {
-      if (!businessName.trim()) {
-        alert("Please enter your business name.");
+      if (!businessName.trim() || businessName.trim().length < 2) {
+        alert("Please enter a valid business name (at least 2 characters).");
+        return;
+      }
+      if (businessWebsite.trim() && !validateUrl(businessWebsite)) {
+        alert("Please enter a valid business website URL (e.g., https://mybusiness.com).");
         return;
       }
     } else if (step === 2) {
-      if (!businessPhone.trim()) {
-        alert("Please enter a valid business phone number.");
+      const cleanedPhone = businessPhone.replace(/[\s\-\(\)]/g, '');
+      if (!validatePhoneNumber(cleanedPhone)) {
+        alert("Please enter a valid business phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
         return;
       }
-      if (!businessAddress.trim()) {
-        alert("Please enter your business address.");
+      setBusinessPhone(cleanedPhone);
+      
+      if (!businessAddress.trim() || businessAddress.trim().length < 5) {
+        alert("Please enter a complete business address (at least 5 characters).");
         return;
       }
     }
@@ -191,7 +229,13 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
 
   const handleComplete = (e) => {
     e.preventDefault();
+    if (!greetingMessage.trim() || greetingMessage.trim().length < 10) {
+      alert("Please write a custom welcome greeting message (at least 10 characters).");
+      return;
+    }
     
+    const cleanedPhone = businessPhone.replace(/[\s\-\(\)]/g, '');
+    const trimmedWebsite = businessWebsite.trim();
     const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
     const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
     
@@ -199,10 +243,10 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
       ...user,
       isOnboarded: true,
       niche: niche,
-      businessName: businessName,
-      businessPhone: businessPhone,
-      businessAddress: businessAddress,
-      businessWebsite: businessWebsite,
+      businessName: businessName.trim(),
+      businessPhone: cleanedPhone,
+      businessAddress: businessAddress.trim(),
+      businessWebsite: trimmedWebsite,
       aiPersona: aiPersona
     };
     
@@ -216,10 +260,10 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
       ...nicheConfigs,
       [niche]: {
         ...nicheConfigs[niche],
-        businessName: businessName,
-        greetingMessage: greetingMessage,
-        systemPrompt: `You are the primary AI Front Desk agent for ${businessName}, a premium ${niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${businessAddress}. 
-Your contact phone is ${businessPhone} and website is ${businessWebsite}.
+        businessName: businessName.trim(),
+        greetingMessage: greetingMessage.trim(),
+        systemPrompt: `You are the primary AI Front Desk agent for ${businessName.trim()}, a premium ${niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${businessAddress.trim()}. 
+Your contact phone is ${cleanedPhone} and website is ${trimmedWebsite}.
 Your personality is ${aiPersona} (always polite, helpful, and concise).
 Your main tasks are:
 1. Capture client full name, WhatsApp number, requested service, and location.
@@ -448,6 +492,7 @@ export default function App() {
   
   // Firebase Auth states
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [signupNameInput, setSignupNameInput] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -1345,6 +1390,21 @@ export default function App() {
     e.preventDefault();
     if (!phoneNumber) return;
 
+    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    if (!validatePhoneNumber(cleanedPhone)) {
+      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      return;
+    }
+
+    if (authMode === 'signup') {
+      if (!validateFullName(signupNameInput)) {
+        alert("Please enter a valid full name (at least 2 letters, no special characters or numbers).");
+        return;
+      }
+    }
+
+    setPhoneNumber(cleanedPhone);
+
     if (firebaseConfig.apiKey.includes("ChangeMe")) {
       setIsAuthLoading(true);
       setTimeout(() => {
@@ -1363,7 +1423,7 @@ export default function App() {
         const checkRes = await fetch(`${BACKEND_URL}/v1/check-user-exists`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phoneNumber })
+          body: JSON.stringify({ phone: cleanedPhone })
         });
         const checkData = await checkRes.json();
         if (checkData.exists) {
@@ -1378,7 +1438,7 @@ export default function App() {
         throw new Error("Failed to initialize Recaptcha.");
       }
       
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      const confirmation = await signInWithPhoneNumber(auth, cleanedPhone, appVerifier);
       setConfirmationResult(confirmation);
       setOtpSent(true);
       setIsAuthLoading(false);
@@ -1399,6 +1459,11 @@ export default function App() {
     e.preventDefault();
     if (!otpCode) return;
 
+    if (!/^\d{6}$/.test(otpCode)) {
+      alert("Verification OTP must be exactly 6 digits.");
+      return;
+    }
+
     if (firebaseConfig.apiKey.includes("ChangeMe")) {
       if (otpCode !== '123456') {
         alert("Demo Mode: Invalid OTP. Use 123456.");
@@ -1409,13 +1474,13 @@ export default function App() {
       setTimeout(() => {
         setIsAuthLoading(false);
         const email = `${phoneNumber.replace('+', '')}@frontdesk.com`;
-        const name = `Phone User (${phoneNumber})`;
+        const name = signupNameInput ? signupNameInput.trim() : `Phone User (${phoneNumber})`;
         
         const authUser = {
           name: name,
           email: email,
           phone: phoneNumber,
-          avatar: 'P',
+          avatar: name.substring(0, 1).toUpperCase(),
           role: 'owner',
           niche: 'dental',
           isOnboarded: false,
@@ -1437,13 +1502,13 @@ export default function App() {
       const firebaseUser = result.user;
       const userPhone = firebaseUser.phoneNumber;
       const email = `${userPhone.replace('+', '')}@frontdesk.com`;
-      const name = `User (${userPhone})`;
+      const name = signupNameInput ? signupNameInput.trim() : `User (${userPhone})`;
 
       const authUser = {
         name: name,
         email: email,
         phone: userPhone,
-        avatar: 'P',
+        avatar: name.substring(0, 1).toUpperCase(),
         role: 'owner',
         niche: 'dental',
         isOnboarded: false,
@@ -1471,8 +1536,16 @@ export default function App() {
     const password = passwordInput;
     const selectedNiche = e.target.nicheType?.value || 'dental';
 
-    if (name.length < 2) {
-      alert("Please write a valid name.");
+    if (!validateFullName(name)) {
+      alert("Please enter a valid full name (at least 2 letters, no special characters or numbers).");
+      return;
+    }
+    if (!validateEmailAddress(email)) {
+      alert("Please enter a valid email address (e.g., owner@business.com).");
+      return;
+    }
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters long.");
       return;
     }
 
@@ -1623,6 +1696,15 @@ export default function App() {
     e.preventDefault();
     const email = emailInput.trim();
     const password = passwordInput;
+
+    if (!validateEmailAddress(email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters long.");
+      return;
+    }
 
     if (firebaseConfig.apiKey.includes("ChangeMe")) {
       setIsAuthLoading(true);
@@ -1805,8 +1887,16 @@ export default function App() {
 
   const handleTestManualConnection = (formElement) => {
     if (!formElement) return;
-    const accessToken = formElement.accessToken.value;
-    const phoneNumberId = formElement.phoneNumberId.value;
+    const accessToken = formElement.accessToken.value.trim();
+    const phoneNumberId = formElement.phoneNumberId.value.trim();
+    if (!accessToken || accessToken.length < 20) {
+      alert("Please enter a valid Meta Access Token to test.");
+      return;
+    }
+    if (!validateNumericId(phoneNumberId)) {
+      alert("Phone Number ID must be a numeric string (10 to 20 digits) to test.");
+      return;
+    }
     handleMetaTestPing({ accessToken, phoneNumberId });
   };
 
@@ -1838,12 +1928,25 @@ export default function App() {
   const handleSaveWhatsAppConfig = (e) => {
     e.preventDefault();
     const form = e.target;
-    const accessToken = form.accessToken.value;
-    const phoneNumberId = form.phoneNumberId.value;
-    const accountId = form.accountId.value;
+    const accessToken = form.accessToken.value.trim();
+    const phoneNumberId = form.phoneNumberId.value.trim();
+    const accountId = form.accountId.value.trim();
+
+    if (!accessToken || accessToken.length < 20) {
+      alert("Please enter a valid Meta Access Token.");
+      return;
+    }
+    if (!validateNumericId(phoneNumberId)) {
+      alert("Phone Number ID must be a numeric string (10 to 20 digits).");
+      return;
+    }
+    if (!validateNumericId(accountId)) {
+      alert("WhatsApp Business Account ID must be a numeric string (10 to 20 digits).");
+      return;
+    }
 
     let updatedConfig;
-    if (accessToken.trim() && phoneNumberId.trim() && accountId.trim()) {
+    if (accessToken && phoneNumberId && accountId) {
       updatedConfig = {
         accessToken,
         phoneNumberId,
@@ -2316,14 +2419,37 @@ export default function App() {
   const handleManualAddLead = (e) => {
     e.preventDefault();
     const form = e.target;
-    
+    const name = form.name.value.trim();
+    const phone = form.phone.value.trim();
+    const requirement = form.requirement.value.trim();
+    const budget = form.budget.value.trim();
+    const location = form.location.value.trim();
+
+    if (!validateFullName(name)) {
+      alert("Please enter a valid name (at least 2 letters, no special characters or numbers).");
+      return;
+    }
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    if (!validatePhoneNumber(cleanedPhone)) {
+      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      return;
+    }
+    if (!requirement || requirement.length < 2) {
+      alert("Please enter a valid requirement (at least 2 characters).");
+      return;
+    }
+    if (!location || location.length < 2) {
+      alert("Please enter a valid location (at least 2 characters).");
+      return;
+    }
+
     const newLead = {
       id: `l-${Date.now()}`,
-      name: form.name.value,
-      phone: form.phone.value,
-      requirement: form.requirement.value,
-      budget: form.budget.value,
-      location: form.location.value,
+      name: name,
+      phone: cleanedPhone,
+      requirement: requirement,
+      budget: budget,
+      location: location,
       date: new Date().toISOString(),
       status: 'new',
       niche: activeNiche,
@@ -2346,13 +2472,35 @@ export default function App() {
   const handleManualAddAppt = (e) => {
     e.preventDefault();
     const form = e.target;
+    const name = form.name.value.trim();
+    const phone = form.phone.value.trim();
+    const service = form.service.value.trim();
+    const dateTime = form.dateTime.value;
+
+    if (!validateFullName(name)) {
+      alert("Please enter a valid name (at least 2 letters, no special characters or numbers).");
+      return;
+    }
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    if (!validatePhoneNumber(cleanedPhone)) {
+      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      return;
+    }
+    if (!service || service.length < 2) {
+      alert("Please enter a valid service (at least 2 characters).");
+      return;
+    }
+    if (!dateTime) {
+      alert("Please select a date and time for the appointment.");
+      return;
+    }
 
     const newAppt = {
       id: `a-${Date.now()}`,
-      name: form.name.value,
-      phone: form.phone.value,
-      service: form.service.value,
-      dateTime: form.dateTime.value,
+      name: name,
+      phone: cleanedPhone,
+      service: service,
+      dateTime: dateTime,
       status: 'confirmed',
       niche: activeNiche,
       reminderSent: false
@@ -2453,10 +2601,27 @@ export default function App() {
   const handleSaveConfig = (e) => {
     e.preventDefault();
     const form = e.target;
-    const businessName = form.businessName.value;
-    const greetingMessage = form.greetingMessage.value;
-    const reviewUrl = form.reviewUrl.value;
-    const systemPrompt = form.systemPrompt.value;
+    const businessName = form.businessName.value.trim();
+    const greetingMessage = form.greetingMessage.value.trim();
+    const reviewUrl = form.reviewUrl.value.trim();
+    const systemPrompt = form.systemPrompt.value.trim();
+
+    if (!businessName || businessName.length < 2) {
+      alert("Please enter a valid business name (at least 2 characters).");
+      return;
+    }
+    if (!greetingMessage || greetingMessage.length < 10) {
+      alert("Please enter a valid greeting welcome message (at least 10 characters).");
+      return;
+    }
+    if (reviewUrl && !validateUrl(reviewUrl)) {
+      alert("Please enter a valid Google review URL.");
+      return;
+    }
+    if (!systemPrompt || systemPrompt.length < 20) {
+      alert("Please write a meaningful system prompt (at least 20 characters) for the AI front desk agent.");
+      return;
+    }
 
     setNicheConfigs(prev => ({
       ...prev,
@@ -2777,7 +2942,13 @@ export default function App() {
                             <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <UserIcon size={14} /> Full Name
                             </label>
-                            <input name="name" required placeholder="e.g. Kartik Gowda" />
+                            <input 
+                              name="name" 
+                              required 
+                              value={signupNameInput}
+                              onChange={(e) => setSignupNameInput(e.target.value)}
+                              placeholder="e.g. Kartik Gowda" 
+                            />
                           </div>
                           
                           <div className="form-group" style={{ marginBottom: '0' }}>
@@ -2863,7 +3034,13 @@ export default function App() {
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <UserIcon size={14} /> Full Name
                         </label>
-                        <input name="name" required placeholder="e.g. Kartik Gowda" />
+                            <input 
+                              name="name" 
+                              required 
+                              value={signupNameInput}
+                              onChange={(e) => setSignupNameInput(e.target.value)}
+                              placeholder="e.g. Kartik Gowda" 
+                            />
                       </div>
                       
                       <div className="form-group" style={{ marginBottom: '0' }}>
@@ -3483,10 +3660,12 @@ export default function App() {
                     <button 
                       type="button" 
                       onClick={() => {
-                        if (!metaPhoneInput.trim()) {
-                          alert("Please enter a valid phone number.");
+                        const cleanedPhone = metaPhoneInput.replace(/[\s\-\(\)]/g, '');
+                        if (!validatePhoneNumber(cleanedPhone)) {
+                          alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
                           return;
                         }
+                        setMetaPhoneInput(cleanedPhone);
                         setMetaOtpSent(true);
                         setMetaStep(4);
                       }} 
@@ -5371,25 +5550,47 @@ export default function App() {
                   <Settings size={18} style={{ color: 'var(--accent-purple)' }} />
                   Business & Profile Settings
                 </h3>
-                <form onSubmit={(e) => {
+                 <form onSubmit={(e) => {
                   e.preventDefault();
                   const form = e.target;
                   
-                  const updatedName = form.profileName.value;
-                  const updatedBusinessName = form.businessName ? form.businessName.value : (user.businessName || '');
-                  const updatedWebsite = form.businessWebsite ? form.businessWebsite.value : (user.businessWebsite || '');
-                  const updatedPhone = form.businessPhone ? form.businessPhone.value : (user.businessPhone || '');
-                  const updatedAddress = form.businessAddress ? form.businessAddress.value : (user.businessAddress || '');
+                  const updatedName = form.profileName.value.trim();
+                  const updatedBusinessName = form.businessName ? form.businessName.value.trim() : (user.businessName || '');
+                  const updatedWebsite = form.businessWebsite ? form.businessWebsite.value.trim() : (user.businessWebsite || '');
+                  const updatedPhone = form.businessPhone ? form.businessPhone.value.trim() : (user.businessPhone || '');
+                  const updatedAddress = form.businessAddress ? form.businessAddress.value.trim() : (user.businessAddress || '');
                   const updatedTone = form.aiPersona ? form.aiPersona.value : (user.aiPersona || 'Friendly');
                   const updatedGoogleApiKey = form.googleApiKey ? form.googleApiKey.value : (user.googleApiKey || '');
                   const updatedGooglePlaceId = form.googlePlaceId ? form.googlePlaceId.value : (user.googlePlaceId || '');
+
+                  if (!validateFullName(updatedName)) {
+                    alert("Please enter a valid name (at least 2 letters, no special characters or numbers).");
+                    return;
+                  }
+                  if (form.businessName && (!updatedBusinessName || updatedBusinessName.length < 2)) {
+                    alert("Please enter a valid business public name (at least 2 characters).");
+                    return;
+                  }
+                  if (form.businessWebsite && updatedWebsite && !validateUrl(updatedWebsite)) {
+                    alert("Please enter a valid business website URL.");
+                    return;
+                  }
+                  const cleanedPhone = updatedPhone.replace(/[\s\-\(\)]/g, '');
+                  if (form.businessPhone && !validatePhoneNumber(cleanedPhone)) {
+                    alert("Please enter a valid business phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+                    return;
+                  }
+                  if (form.businessAddress && (!updatedAddress || updatedAddress.length < 5)) {
+                    alert("Please enter a complete business address (at least 5 characters).");
+                    return;
+                  }
 
                   const updatedUser = {
                     ...user,
                     name: updatedName,
                     businessName: updatedBusinessName,
                     businessWebsite: updatedWebsite,
-                    businessPhone: updatedPhone,
+                    businessPhone: cleanedPhone,
                     businessAddress: updatedAddress,
                     aiPersona: updatedTone,
                     googleApiKey: updatedGoogleApiKey,
@@ -5415,7 +5616,7 @@ export default function App() {
                         ...nicheConfigs[activeNiche],
                         businessName: updatedBusinessName,
                         systemPrompt: `You are the primary AI Front Desk agent for ${updatedBusinessName}, a premium ${activeNiche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${updatedAddress}. 
-Your contact phone is ${updatedPhone} and website is ${updatedWebsite}.
+Your contact phone is ${cleanedPhone} and website is ${updatedWebsite}.
 Your personality is ${updatedTone} (always polite, helpful, and concise).
 Your main tasks are:
 1. Capture client full name, WhatsApp number, requested service, and location.
@@ -5665,6 +5866,14 @@ Your main tasks are:
                 
                 <form onSubmit={async (e) => {
                   e.preventDefault();
+                  if (!validateFullName(newStaffName)) {
+                    alert("Please enter a valid staff name (at least 2 letters, no special characters or numbers).");
+                    return;
+                  }
+                  if (!validateEmailAddress(newStaffEmail)) {
+                    alert("Please enter a valid staff email address.");
+                    return;
+                  }
                   try {
                     const res = await authenticatedFetch(`${BACKEND_URL}/v1/staff`, {
                       method: 'POST',
