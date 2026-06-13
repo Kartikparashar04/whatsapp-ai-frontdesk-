@@ -3341,6 +3341,22 @@ export default function App() {
     return `${diffHours} hours remaining`;
   };
 
+  const getSubscriptionRemainingText = () => {
+    if (!user) return "No active subscription";
+    const startDate = user.subscriptionStart ? new Date(user.subscriptionStart) : new Date();
+    const expiry = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const diffMs = expiry - new Date();
+    if (diffMs <= 0) return "Subscription Expired";
+    
+    const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+    if (diffHours > 24) {
+      const days = Math.floor(diffHours / 24);
+      const hours = diffHours % 24;
+      return `${days}d ${hours}h remaining`;
+    }
+    return `${diffHours} hours remaining`;
+  };
+
   // Lock Overlay Component for Inactive Subscriptions
   const renderLockOverlay = (featureName) => {
     return (
@@ -5120,11 +5136,11 @@ export default function App() {
                   </span>
                 </div>
                 
-                {isTrialActive && (
+                {(isSubscribed || isTrialActive) && (
                   <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-light)', paddingLeft: '12px' }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>TIME LEFT</div>
                     <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--accent-cyan)' }}>
-                      {getTrialRemainingText()}
+                      {isSubscribed ? getSubscriptionRemainingText() : getTrialRemainingText()}
                     </span>
                   </div>
                 )}

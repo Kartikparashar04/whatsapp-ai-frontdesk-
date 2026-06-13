@@ -198,6 +198,9 @@ async function initSQLite() {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN subscription_plan TEXT DEFAULT NULL`);
     } catch (err) {}
     try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN subscription_start TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN google_api_key TEXT DEFAULT NULL`);
     } catch (err) {}
     try {
@@ -303,6 +306,11 @@ async function getProfileByEmail(email) {
     if (!db) return null;
     const row = await db.get('SELECT * FROM business_profiles WHERE email = ?', email.toLowerCase());
     if (row) {
+      if (row.is_subscribed === 1 && !row.subscription_start) {
+        const now = new Date().toISOString();
+        await db.run('UPDATE business_profiles SET subscription_start = ? WHERE email = ?', now, email.toLowerCase());
+        row.subscription_start = now;
+      }
       row.whatsappConfig = row.whatsapp_config ? JSON.parse(row.whatsapp_config) : {};
       row.isOnboarded = row.is_onboarded === 1;
       row.isSubscribed = row.is_subscribed === 1;
@@ -314,6 +322,7 @@ async function getProfileByEmail(email) {
       row.aiPersona = row.ai_persona;
       row.trialStart = row.trial_start;
       row.subscriptionPlan = row.subscription_plan;
+      row.subscriptionStart = row.subscription_start;
       row.googleApiKey = row.google_api_key;
       row.googlePlaceId = row.google_place_id;
     }
@@ -736,11 +745,12 @@ app.post('/v1/payments/verify-payment', checkAuth, async (req, res) => {
       }
 
       // Mark as onboarded and update plan/status in DB
+      const now = new Date().toISOString();
       await db.run(`
         UPDATE business_profiles 
-        SET is_onboarded = 1, is_subscribed = 1, subscription_plan = ?
+        SET is_onboarded = 1, is_subscribed = 1, subscription_plan = ?, subscription_start = ?
         WHERE email = ?
-      `, plan || 'starter', emailKey);
+      `, plan || 'starter', now, emailKey);
 
       console.log(`Payment successful and verified for email ${emailKey}`);
       return res.status(200).json({
