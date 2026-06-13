@@ -5029,8 +5029,8 @@ export default function App() {
                     <div style={{ fontSize: '0.75rem' }}>
                       <span style={{ color: 'var(--text-secondary)' }}>Verify Token:</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #dadce0', padding: '6px 10px', borderRadius: '8px', marginTop: '4px' }}>
-                        <code style={{ flexGrow: 1 }}>frontdesk_verify_token_secure_99</code>
-                        <button onClick={() => { navigator.clipboard.writeText("frontdesk_verify_token_secure_99"); triggerToast("Verify Token Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
+                        <code style={{ flexGrow: 1 }}>deskflow_verify_token_secure_99</code>
+                        <button onClick={() => { navigator.clipboard.writeText("deskflow_verify_token_secure_99"); triggerToast("Verify Token Copied!"); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><Copy size={12} /></button>
                       </div>
                     </div>
                   </div>

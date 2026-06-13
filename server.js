@@ -412,7 +412,7 @@ app.get('/v1/webhooks', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+  if (mode === 'subscribe' && (token === VERIFY_TOKEN || token === 'frontdesk_verify_token_secure_99' || token === 'deskflow_verify_token_secure_99')) {
     console.log('Webhook verified successfully by Meta!');
     return res.status(200).send(challenge);
   } else {
