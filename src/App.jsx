@@ -864,6 +864,17 @@ export default function App() {
     }(document, 'script', 'facebook-jssdk'));
   }, []);
 
+  // Fetch fresh profile state on mount to sync subscription status
+  useEffect(() => {
+    if (user) {
+      if (auth.currentUser) {
+        resolveUserProfileAndSetSession(auth.currentUser);
+      } else {
+        resolveUserProfileAndSetSession(user);
+      }
+    }
+  }, []);
+
   // LocalStorage Synchronizers (scoped by user email, with safety guards)
   useEffect(() => {
     if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {

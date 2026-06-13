@@ -2014,18 +2014,6 @@ const swaggerSpec = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.get('/v1/debug-db-profiles', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(500).json({ error: 'Database not initialized' });
-    }
-    const rows = await db.all('SELECT email, name, is_onboarded, is_subscribed, subscription_plan, trial_start FROM business_profiles');
-    return res.status(200).json(rows);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
 // Catch-all route to serve the React index.html for client-side routing (Single Page App)
 app.get('*all', (req, res, next) => {
   // If the request starts with /v1/ or is for Meta privacy policy, let it pass through to the routing handlers
