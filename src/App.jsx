@@ -1205,7 +1205,8 @@ export default function App() {
   };
 
   // Payments: Trigger Razorpay Checkout for SaaS Plans (₹2/mo Starter or ₹2,499/mo Pro)
-  const handlePayment = async (planType = 'starter') => {
+  const handlePayment = async (planArg = 'starter') => {
+    const planType = (planArg === 'pro') ? 'pro' : 'starter';
     if (!user) {
       triggerToast("You must be logged in to activate a plan.", "red");
       return;
@@ -5474,7 +5475,7 @@ export default function App() {
                       <div>
                         {user.isSubscribed ? (
                           <button 
-                            onClick={handlePayment}
+                            onClick={() => handlePayment('starter')}
                             disabled={isPaymentLoading}
                             style={{
                               padding: '6px 12px',
@@ -5494,7 +5495,7 @@ export default function App() {
                           </button>
                         ) : (
                           <button 
-                            onClick={handlePayment}
+                            onClick={() => handlePayment('starter')}
                             disabled={isPaymentLoading}
                             style={{
                               padding: '8px 14px',
