@@ -236,14 +236,14 @@ async function checkAuth(req, res, next) {
       req.user = { email };
     } else {
       const decodedToken = await admin.auth().verifyIdToken(token);
-      email = decodedToken.email;
-      if (!email) {
-        if (decodedToken.phone_number) {
-          email = `${decodedToken.phone_number.replace('+', '')}@frontdesk.com`;
-        } else {
-          email = `${decodedToken.uid}@frontdesk.com`;
-        }
+      let resolvedEmail = decodedToken.email;
+      if (!resolvedEmail && decodedToken.phone_number) {
+        resolvedEmail = `${decodedToken.phone_number.replace('+', '')}@frontdesk.com`;
       }
+      if (!resolvedEmail) {
+        resolvedEmail = `${decodedToken.uid}@frontdesk.com`;
+      }
+      email = resolvedEmail;
       req.user = {
         uid: decodedToken.uid,
         email
