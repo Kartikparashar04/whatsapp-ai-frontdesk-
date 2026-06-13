@@ -236,7 +236,14 @@ async function checkAuth(req, res, next) {
       req.user = { email };
     } else {
       const decodedToken = await admin.auth().verifyIdToken(token);
-      email = decodedToken.email || `${decodedToken.uid}@frontdesk.com`;
+      email = decodedToken.email;
+      if (!email) {
+        if (decodedToken.phone_number) {
+          email = `${decodedToken.phone_number.replace('+', '')}@frontdesk.com`;
+        } else {
+          email = `${decodedToken.uid}@frontdesk.com`;
+        }
+      }
       req.user = {
         uid: decodedToken.uid,
         email
