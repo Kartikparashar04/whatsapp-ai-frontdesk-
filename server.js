@@ -694,7 +694,8 @@ app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
       key: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_key_id_123456'
     });
   } catch (error) {
-    console.warn('Razorpay API error, falling back to mock payment flow:', error.message);
+    console.error('Razorpay API error details:', error);
+    console.warn('Razorpay API error, falling back to mock payment flow:', error.message || error);
     return res.status(200).json({
       success: true,
       orderId: `order_mock_${Date.now()}`,
