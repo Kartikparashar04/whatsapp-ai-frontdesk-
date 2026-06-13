@@ -659,8 +659,8 @@ app.post('/v1/load-demo-data', checkAuth, async (req, res) => {
  * 3c. Create a payment order via Razorpay
  */
 app.post('/v1/payments/create-order', checkAuth, async (req, res) => {
+  const { amount, currency } = req.body;
   try {
-    const { amount, currency } = req.body;
     if (!amount) {
       return res.status(400).json({ success: false, error: 'Amount is required' });
     }
