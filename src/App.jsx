@@ -491,6 +491,7 @@ export default function App() {
     return local ? JSON.parse(local) : null;
   });
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   
   const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login, forgot_password
   const [authMethod, setAuthMethod] = useState('phone'); // phone, email
@@ -912,6 +913,7 @@ export default function App() {
   }, [nicheConfigs, user]);
 
   useEffect(() => {
+    if (!isProfileLoaded) return;
     if (user && user.email && user.email.toLowerCase() === loadedEmailRef.current) {
       localStorage.setItem(`frontdesk_wa_config_${user.email.toLowerCase()}`, JSON.stringify(whatsappConfig));
       
@@ -926,7 +928,7 @@ export default function App() {
         })
       }).catch(err => console.error("Error auto-syncing WhatsApp config to backend:", err));
     }
-  }, [whatsappConfig, user]);
+  }, [whatsappConfig, user, isProfileLoaded]);
 
   // Save/Remove session key
   useEffect(() => {
@@ -1195,6 +1197,10 @@ export default function App() {
         const profileData = await res.json();
         if (profileData && !profileData.isNew) {
           // Profile exists on SQL backend! Let's merge and mark as onboarded
+          const backendWaConfig = profileData.whatsappConfig || { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false };
+          localStorage.setItem(`frontdesk_wa_config_${emailKey}`, JSON.stringify(backendWaConfig));
+          setWhatsappConfig(backendWaConfig);
+
           const fullProfile = {
             ...initialUser,
             ...profileData,
@@ -1209,6 +1215,7 @@ export default function App() {
           
           triggerToast(`Welcome back, ${fullProfile.name}!`, 'green');
           addActivity(`Logged in and restored profile from database: ${fullProfile.email}`, 'success');
+          setIsProfileLoaded(true);
           return;
         }
       }
@@ -1220,6 +1227,7 @@ export default function App() {
     if (!existingProfile) {
       syncUserToBackend(authUser);
     }
+    setIsProfileLoaded(true);
   };
 
   // Payments: Trigger Razorpay Checkout for SaaS Plans (₹2/mo Starter or ₹2,499/mo Pro)
@@ -1862,6 +1870,7 @@ export default function App() {
       firebaseSignOut(auth).catch(err => console.error("Firebase Signout Error", err));
     }
     setUser(null);
+    setIsProfileLoaded(false);
     setActiveTab('dashboard');
     setOtpSent(false);
     setPhoneNumber('');
