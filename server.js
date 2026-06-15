@@ -1594,6 +1594,27 @@ async function processIncomingMessage(userMessage, customerPhone, customerName, 
       }
     }
 
+    // Retrieve caller's existing appointments from DB (filtered privately by phone)
+    let callerAppointments = [];
+    if (db) {
+      try {
+        const allAppts = await db.all('SELECT id, name, phone, service, date_time, status FROM appointments WHERE owner_email = ?', ownerEmail);
+        const cleanCustomerPhone = customerPhone.replace(/\D/g, '');
+        callerAppointments = allAppts.filter(appt => {
+          const cleanApptPhone = appt.phone.replace(/\D/g, '');
+          return cleanApptPhone.endsWith(cleanCustomerPhone) || cleanCustomerPhone.endsWith(cleanApptPhone);
+        });
+      } catch (err) {
+        console.error('[AI Engine] Error fetching caller appointments:', err.message);
+      }
+    }
+
+    let appointmentsContext = "Caller has no existing appointments.";
+    if (callerAppointments.length > 0) {
+      appointmentsContext = `Current caller's existing appointments (strictly private, only for this phone number):\n` +
+        callerAppointments.map(appt => `- Appointment ID: "${appt.id}", Service: "${appt.service}", Date/Time: "${appt.date_time}", Status: "${appt.status}"`).join('\n');
+    }
+
     const groundingText = await getGroundingContext(ownerEmail, userMessage);
     const today = new Date();
     const categoryLabel = profile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
@@ -1617,10 +1638,14 @@ ${systemPromptText}
 
 ${groundingText}
 
+${appointmentsContext}
+
 Tasks:
 1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
 2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
-3. If the client asks to speak to a human/staff/manager, or if you cannot answer their query from the provided instructions/niche, set "isHandoff" to true.
+3. If the user is asking whether they have an appointment, read the caller's existing appointments listed above and reply accordingly. Do NOT show or disclose appointments of other users.
+4. If the user wants to cancel or delete their appointment, identify the correct Appointment ID from the list, set "isCancellation" to true, and "cancellationAppointmentId" to the selected ID. In your reply, politely confirm that the appointment is being cancelled.
+5. If the client asks to speak to a human/staff/manager, or if you cannot answer their query from the provided instructions/niche, set "isHandoff" to true.
 
 You MUST reply ONLY with a valid JSON block matching this exact structure, do not wrap it in anything else, do not include markdown blocks:
 {
@@ -1628,6 +1653,8 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
   "isBooking": true/false,
   "isLead": true/false,
   "isHandoff": true/false,
+  "isCancellation": true/false,
+  "cancellationAppointmentId": "extracted appointment ID to cancel or null",
   "customerName": "extracted customer name or fallback",
   "service": "extracted service name (e.g. Teeth Cleaning, Haircut) or null",
   "dateTime": "computed YYYY-MM-DDTHH:MM:SS format string or human-readable fallback or null",
@@ -1648,6 +1675,12 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
     console.log('[AI Engine] Combined parsing output:', parsed);
 
     const parsedHandoff = parsed.isHandoff === true;
+
+    // Process appointment cancellation if requested by AI
+    if (parsed.isCancellation && parsed.cancellationAppointmentId && db) {
+      await db.run('DELETE FROM appointments WHERE id = ? AND owner_email = ?', parsed.cancellationAppointmentId, ownerEmail);
+      console.log(`[SQL Database] Cancelled/Deleted appointment ID: ${parsed.cancellationAppointmentId} on request from ${customerPhone}`);
+    }
 
     // Log bot response
     await logMessageToConversation(ownerEmail, customerPhone, customerName, 'bot', parsed.reply || '', parsedHandoff ? 'human' : 'ai');
