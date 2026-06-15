@@ -239,6 +239,14 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
     const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
     const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
     
+    const systemPromptText = `You are the primary AI Front Desk agent for ${businessName.trim()}, a premium ${niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${businessAddress.trim()}. 
+Your contact phone is ${cleanedPhone} and website is ${trimmedWebsite}.
+Your personality is ${aiPersona} (always polite, helpful, and concise).
+Your main tasks are:
+1. Capture client full name, WhatsApp number, requested service, and location.
+2. Confirm slots and schedule appointments.
+3. Share the Google Review link: ${nicheConfigs[niche]?.reviewUrl || ''} to invite feedback.`;
+
     const updatedUser = {
       ...user,
       isOnboarded: true,
@@ -247,7 +255,10 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
       businessPhone: cleanedPhone,
       businessAddress: businessAddress.trim(),
       businessWebsite: trimmedWebsite,
-      aiPersona: aiPersona
+      aiPersona: aiPersona,
+      systemPrompt: systemPromptText,
+      greetingMessage: greetingMessage.trim(),
+      reviewUrl: nicheConfigs[niche]?.reviewUrl || ''
     };
     
     localStorage.setItem('frontdesk_user', JSON.stringify(updatedUser));
@@ -262,18 +273,12 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
         ...nicheConfigs[niche],
         businessName: businessName.trim(),
         greetingMessage: greetingMessage.trim(),
-        systemPrompt: `You are the primary AI Front Desk agent for ${businessName.trim()}, a premium ${niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${businessAddress.trim()}. 
-Your contact phone is ${cleanedPhone} and website is ${trimmedWebsite}.
-Your personality is ${aiPersona} (always polite, helpful, and concise).
-Your main tasks are:
-1. Capture client full name, WhatsApp number, requested service, and location.
-2. Confirm slots and schedule appointments.
-3. Share the Google Review link: ${nicheConfigs[niche].reviewUrl} to invite feedback.`
+        systemPrompt: systemPromptText
       }
     };
     
     setNicheConfigs(updatedConfigs);
-    localStorage.setItem('frontdesk_configs', JSON.stringify(updatedConfigs));
+    localStorage.setItem(`frontdesk_configs_${user.email.toLowerCase()}`, JSON.stringify(updatedConfigs));
     
     setUser(updatedUser);
     
@@ -2637,16 +2642,47 @@ export default function App() {
       return;
     }
 
-    setNicheConfigs(prev => ({
-      ...prev,
+    const updatedConfigs = {
+      ...nicheConfigs,
       [activeNiche]: {
-        ...prev[activeNiche],
+        ...nicheConfigs[activeNiche],
         businessName,
         greetingMessage,
         reviewUrl,
         systemPrompt
       }
-    }));
+    };
+    setNicheConfigs(updatedConfigs);
+
+    if (user && user.email) {
+      const emailKey = user.email.toLowerCase();
+      localStorage.setItem(`frontdesk_configs_${emailKey}`, JSON.stringify(updatedConfigs));
+
+      // Sync settings with the user profile object so it updates database
+      const updatedUser = {
+        ...user,
+        businessName,
+        systemPrompt,
+        greetingMessage,
+        reviewUrl
+      };
+      setUser(updatedUser);
+      localStorage.setItem('frontdesk_user', JSON.stringify(updatedUser));
+
+      // Update local storage profiles list
+      const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
+      const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
+      localStorage.setItem('frontdesk_user_profiles', JSON.stringify({
+        ...profiles,
+        [emailKey]: updatedUser
+      }));
+
+      authenticatedFetch(`${BACKEND_URL}/v1/business-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser)
+      }).catch(err => console.error("Error syncing profile updates with backend:", err));
+    }
 
     triggerToast('Settings updated!', 'purple');
     addActivity(`AI agent configuration updated for ${businessName}`, 'ai');

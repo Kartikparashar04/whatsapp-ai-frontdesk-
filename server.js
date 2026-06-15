@@ -217,6 +217,15 @@ async function initSQLite() {
       await db.exec(`ALTER TABLE business_profiles ADD COLUMN is_suspended INTEGER DEFAULT 0`);
     } catch (err) {}
     try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN system_prompt TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN greeting_message TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
+      await db.exec(`ALTER TABLE business_profiles ADD COLUMN review_url TEXT DEFAULT NULL`);
+    } catch (err) {}
+    try {
       await db.exec(`ALTER TABLE staff ADD COLUMN permissions TEXT DEFAULT '{}'`);
     } catch (err) {}
     
@@ -343,6 +352,9 @@ async function getProfileByEmail(email) {
       row.subscriptionStart = row.subscription_start;
       row.googleApiKey = row.google_api_key;
       row.googlePlaceId = row.google_place_id;
+      row.systemPrompt = row.system_prompt;
+      row.greetingMessage = row.greeting_message;
+      row.reviewUrl = row.review_url;
     }
     return row || null;
   } catch (error) {
@@ -519,15 +531,18 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
     const subscription_plan = profileData.subscriptionPlan || null;
     const google_api_key = profileData.googleApiKey || null;
     const google_place_id = profileData.googlePlaceId || null;
+    const system_prompt = profileData.systemPrompt || null;
+    const greeting_message = profileData.greetingMessage || null;
+    const review_url = profileData.reviewUrl || null;
 
     await db.run(`
       INSERT INTO business_profiles (
         email, name, avatar, avatar_img, role, niche, is_onboarded, is_subscribed, 
         business_name, business_phone, business_address, business_website, 
         ai_persona, phone_number_id, whatsapp_config, trial_start, subscription_plan,
-        google_api_key, google_place_id
+        google_api_key, google_place_id, system_prompt, greeting_message, review_url
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         avatar = excluded.avatar,
@@ -546,7 +561,10 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
         trial_start = excluded.trial_start,
         subscription_plan = excluded.subscription_plan,
         google_api_key = excluded.google_api_key,
-        google_place_id = excluded.google_place_id
+        google_place_id = excluded.google_place_id,
+        system_prompt = excluded.system_prompt,
+        greeting_message = excluded.greeting_message,
+        review_url = excluded.review_url
     `,
       emailKey,
       profileData.name || '',
@@ -566,7 +584,10 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       trial_start,
       subscription_plan,
       google_api_key,
-      google_place_id
+      google_place_id,
+      system_prompt,
+      greeting_message,
+      review_url
     );
 
     console.log(`Successfully synced business profile for email ${emailKey}`);
@@ -1578,14 +1599,20 @@ async function processIncomingMessage(userMessage, customerPhone, customerName, 
     
     console.log(`[AI Engine] Processing message from ${customerName} (${customerPhone}) for ${profile.businessName}...`);
 
+    const systemPromptText = profile.system_prompt || `You are the primary AI Front Desk agent for "${profile.businessName}", a premium ${categoryLabel} located at "${profile.businessAddress}".
+Business contact: Phone: ${profile.businessPhone}, Website: ${profile.businessWebsite}.
+Your personality: ${profile.aiPersona} (always polite, helpful, and concise).
+Your main tasks are:
+1. Capture client full name, WhatsApp number, requested service, and location.
+2. Confirm slots and schedule appointments.
+3. Share the Google Review link: ${profile.review_url || ''} to invite feedback.`;
+
     const combinedPrompt = `You are a front desk database parser and conversational agent.
 Analyze this WhatsApp client query: "${userMessage}"
 From sender: Name: "${customerName}", Phone: "${customerPhone}".
 Current date is: ${today.toDateString()} (Day: ${today.toLocaleDateString('en-US', { weekday: 'long' })}).
 
-You are the AI Front Desk for "${profile.businessName}", a premium ${categoryLabel} located at "${profile.businessAddress}".
-Business contact: Phone: ${profile.businessPhone}, Website: ${profile.businessWebsite}.
-Your personality: ${profile.aiPersona} (always polite, helpful, and concise).
+${systemPromptText}
 
 ${groundingText}
 
@@ -1892,8 +1919,8 @@ app.post('/v1/conversations/:id/reply', checkAuth, async (req, res) => {
       msgId, conv.id, 'staff', text
     );
     await db.run(
-      'UPDATE conversations SET last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      text, conv.id
+      'UPDATE conversations SET last_message = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      text, 'human', conv.id
     );
 
     return res.status(200).json({ success: true });
