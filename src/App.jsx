@@ -740,6 +740,7 @@ export default function App() {
 
   const syncCRMData = async () => {
     if (!user) return;
+    if (typeof document !== 'undefined' && document.hidden) return; // Skip background polling to save resources
     try {
       // 1. Fetch leads from WhatsApp backend
       const resLeads = await authenticatedFetch(`${BACKEND_URL}/v1/leads`);
@@ -945,6 +946,7 @@ export default function App() {
   };
 
   const fetchMessages = async (id) => {
+    if (typeof document !== 'undefined' && document.hidden) return; // Skip background polling to save resources
     try {
       const res = await authenticatedFetch(`${BACKEND_URL}/v1/conversations/${id}/messages`);
       if (res.ok) {

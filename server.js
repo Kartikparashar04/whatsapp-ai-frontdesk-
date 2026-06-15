@@ -64,6 +64,13 @@ async function initSQLite() {
       driver: sqlite3.Database
     });
 
+    // Performance Optimization: Enable WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and busy timeout
+    await db.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA busy_timeout = 5000;
+      PRAGMA synchronous = NORMAL;
+    `);
+
     
     await db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -213,6 +220,17 @@ async function initSQLite() {
       await db.exec(`ALTER TABLE staff ADD COLUMN permissions TEXT DEFAULT '{}'`);
     } catch (err) {}
     
+    // Performance Optimization: Add indexes on foreign key lookup columns to speed up SELECT and JOIN queries
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_leads_owner_email ON leads(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_appointments_owner_email ON appointments(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_conversations_owner_email ON conversations(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_conversations_customer_phone ON conversations(customer_phone);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_faqs_owner_email ON faqs(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_knowledge_base_owner_email ON knowledge_base(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_staff_owner_email ON staff(owner_email);'); } catch (err) {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_staff_email ON staff(email);'); } catch (err) {}
+
     console.log('SQLite Database and all tables (users, leads, appointments, business_profiles, referrals, reviews, staff, conversations, messages, knowledge_base, faqs) initialized successfully!');
   } catch (error) {
     console.error('Failed to initialize SQLite Database:', error.message);
