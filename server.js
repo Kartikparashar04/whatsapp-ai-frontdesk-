@@ -829,10 +829,11 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
     }
 
     const profile = await getProfileByEmail(emailKey);
+    const isAdmin = emailKey === 'kartikparashar15@gmail.com' || emailKey === 'admin@frontdesk.com' || (profile && profile.role === 'admin');
     if (profile) {
       return res.status(200).json({
         ...profile,
-        role: 'owner',
+        role: isAdmin ? 'admin' : 'owner',
         permissions: {
           canDeleteLeads: true,
           canViewBilling: true,
@@ -843,7 +844,7 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
     return res.status(200).json({
       email: emailKey,
       isNew: true,
-      role: 'owner',
+      role: isAdmin ? 'admin' : 'owner',
       permissions: {
         canDeleteLeads: true,
         canViewBilling: true,
@@ -1997,7 +1998,8 @@ app.get('/v1/admin/businesses', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.email.toLowerCase();
     const callerProfile = await getProfileByEmail(emailKey);
-    if (!callerProfile || callerProfile.role !== 'admin') {
+    const isAdmin = emailKey === 'kartikparashar15@gmail.com' || emailKey === 'admin@frontdesk.com' || (callerProfile && callerProfile.role === 'admin');
+    if (!isAdmin) {
       return res.status(403).json({ success: false, error: 'Forbidden: Admin access only.' });
     }
 
@@ -2012,7 +2014,8 @@ app.post('/v1/admin/businesses/suspend', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.email.toLowerCase();
     const callerProfile = await getProfileByEmail(emailKey);
-    if (!callerProfile || callerProfile.role !== 'admin') {
+    const isAdmin = emailKey === 'kartikparashar15@gmail.com' || emailKey === 'admin@frontdesk.com' || (callerProfile && callerProfile.role === 'admin');
+    if (!isAdmin) {
       return res.status(403).json({ success: false, error: 'Forbidden: Admin access only.' });
     }
 
