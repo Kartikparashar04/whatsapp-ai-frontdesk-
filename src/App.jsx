@@ -33,7 +33,8 @@ import {
   Info,
   Database,
   BookOpen,
-  UploadCloud
+  UploadCloud,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   INITIAL_LEADS, 
@@ -4169,7 +4170,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="main-content">
+      <main className={`main-content ${activeTab === 'livechat' ? 'handoff-layout' : ''}`}>
         
         {/* Header */}
         <div className="header-row">
@@ -6166,11 +6167,10 @@ Your main tasks are:
           </div>
         )}
 
-        {/* Tab: Live Chat & Human Handoff */}
         {activeTab === 'livechat' && (
-          <div className="tab-content" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', height: 'calc(100vh - 120px)', minHeight: '500px' }}>
+          <div className={`handoff-container ${selectedConvId ? 'chat-active' : ''}`}>
             {/* Left sidebar - conversations list */}
-            <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+            <div className="glass-panel handoff-sidebar">
               <h3 style={{ fontSize: '1.1rem', fontWeight: '700', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>Active Chats</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {conversations.length === 0 ? (
@@ -6205,16 +6205,25 @@ Your main tasks are:
             </div>
 
             {/* Right sidebar - chat pane */}
-            <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div className="glass-panel handoff-chatpane">
               {selectedConvId ? (
                 (() => {
                   const currentConv = conversations.find(c => c.id === selectedConvId) || {};
                   return (
                     <>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', marginBottom: '16px' }}>
-                        <div>
-                          <h4 style={{ fontWeight: '700', margin: 0 }}>{currentConv.customer_name}</h4>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Phone: {currentConv.customer_phone}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <button 
+                            className="handoff-back-btn" 
+                            onClick={() => setSelectedConvId(null)}
+                            title="Back to chat list"
+                          >
+                            <ArrowLeft size={18} />
+                          </button>
+                          <div>
+                            <h4 style={{ fontWeight: '700', margin: 0 }}>{currentConv.customer_name}</h4>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>Phone: {currentConv.customer_phone}</p>
+                          </div>
                         </div>
                         <button 
                           onClick={async () => {
@@ -6248,7 +6257,7 @@ Your main tasks are:
                       </div>
 
                       {/* Messages scroll pane */}
-                      <div style={{ flexGrow: 1, overflowY: 'auto', background: 'rgba(0,0,0,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                      <div className="handoff-messages-container">
                         {activeMessages.length === 0 ? (
                           <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '20px' }}>Loading conversation history...</p>
                         ) : (

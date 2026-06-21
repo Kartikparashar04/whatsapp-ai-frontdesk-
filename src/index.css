@@ -1957,3 +1957,96 @@ input:checked + .toggle-slider:before {
     grid-template-columns: 80px 1fr 760px;
   }
 }
+
+.main-content.handoff-layout {
+  overflow: hidden !important;
+}
+
+/* Handoff Layout CSS */
+.handoff-container {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  height: calc(100vh - 180px); /* Fit within the viewport precisely */
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left pane: Active chat list */
+.handoff-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Right pane: Chat box */
+.handoff-chatpane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Messages scroll container */
+.handoff-messages-container {
+  flex-grow: 1;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* Back button for mobile view */
+.handoff-back-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.handoff-back-btn:hover {
+  background: var(--border-light);
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .handoff-container {
+    grid-template-columns: 1fr; /* Single column */
+    height: calc(100vh - 140px); /* Take most of screen */
+  }
+  
+  /* If conversation is selected, hide sidebar and show chatpane. Else, show sidebar and hide chatpane */
+  .handoff-container.chat-active .handoff-sidebar {
+    display: none;
+  }
+  
+  .handoff-container:not(.chat-active) .handoff-chatpane {
+    display: none;
+  }
+  
+  /* Show back button when chat is active on mobile */
+  .handoff-container.chat-active .handoff-back-btn {
+    display: flex;
+  }
+  
+  .handoff-chatpane {
+    padding: 12px; /* tighter padding on mobile */
+  }
+}
+
