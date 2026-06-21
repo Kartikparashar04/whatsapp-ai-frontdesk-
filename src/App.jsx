@@ -297,7 +297,7 @@ Your main tasks are:
     <div className="onboarding-backdrop">
       <div className="onboarding-card-panel">
         <div className="onboarding-header">
-          <div className="logo-icon" style={{ margin: '0 auto 12px auto', width: '48px', height: '48px', fontSize: '1.6rem' }}>D</div>
+          <img src="/app_icon.png" className="logo-icon" style={{ margin: '0 auto 12px auto', width: '48px', height: '48px', objectFit: 'cover' }} alt="FrontDesk AI Logo" />
           <h1>Complete Your Business Profile</h1>
           <p>Let's customize your WhatsApp AI assistant to fit your business</p>
         </div>
@@ -2803,7 +2803,7 @@ export default function App() {
 
         <div className="glass-panel auth-card-panel">
           <div className="auth-card-header">
-            <div className="logo-icon" style={{ margin: '0 auto', width: '42px', height: '42px', fontSize: '1.4rem' }}>D</div>
+            <img src="/app_icon.png" className="logo-icon" style={{ margin: '0 auto', width: '42px', height: '42px', objectFit: 'cover' }} alt="FrontDesk AI Logo" />
             <h1 className="auth-card-title">FrontDesk AI</h1>
             <p className="auth-card-subtitle">WhatsApp AI Front Desk for Local Businesses</p>
           </div>
@@ -3904,7 +3904,7 @@ export default function App() {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
         <div className="logo-container" style={{ padding: 0 }}>
-          <div className="logo-icon" style={{ width: '28px', height: '28px', fontSize: '1rem', borderRadius: '6px' }}>D</div>
+          <img src="/app_icon.png" className="logo-icon" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }} alt="FrontDesk AI Logo" />
           <span className="logo-text" style={{ fontSize: '1.1rem' }}>FrontDesk AI</span>
         </div>
         <button 
@@ -3944,7 +3944,7 @@ export default function App() {
         <div>
           <div className="logo-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className="logo-icon">D</div>
+              <img src="/app_icon.png" className="logo-icon" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }} alt="FrontDesk AI Logo" />
               <span className="logo-text">FrontDesk AI</span>
             </div>
             <button className="sidebar-close-btn" onClick={() => setIsMobileMenuOpen(false)}>
