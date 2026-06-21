@@ -671,6 +671,19 @@ export default function App() {
     triggerToast("Google Place ID auto-filled! Click save to apply.", "green");
   };
 
+  const handleGoogleRatingClick = () => {
+    if (user?.reviewUrl && user.reviewUrl.trim() !== '') {
+      window.open(user.reviewUrl.trim(), '_blank');
+      return;
+    }
+    if (user?.googlePlaceId && user.googlePlaceId.trim() !== '') {
+      window.open(`https://search.google.com/local/writereview?placeid=${user.googlePlaceId.trim()}`, '_blank');
+      return;
+    }
+    const query = user?.businessName || user?.name || 'dentist salon near me';
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+  };
+
   // Chatbot State Machine tracking
   const [botState, setBotState] = useState({
     step: 'greeting',
@@ -4276,7 +4289,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="glass-panel kpi-card">
+              <div className="glass-panel kpi-card kpi-card-clickable" onClick={handleGoogleRatingClick} title="View or Write Google Reviews">
                 <div className="kpi-header">
                   <span className="kpi-title">Google Rating</span>
                   <div className="kpi-icon-wrapper" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-yellow)' }}>

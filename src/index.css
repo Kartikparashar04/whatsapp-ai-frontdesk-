@@ -348,6 +348,17 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
 }
 
+.kpi-card-clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card-clickable:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-yellow);
+  box-shadow: 0 6px 20px rgba(249, 171, 0, 0.12);
+}
+
 .kpi-header {
   display: flex;
   justify-content: space-between;
