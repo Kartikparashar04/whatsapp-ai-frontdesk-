@@ -781,16 +781,20 @@ export default function App() {
       if (resLeads.ok) {
         const waLeads = await resLeads.json();
         setLeads(prevLeads => {
+          const normalizedLeads = waLeads.map(lead => ({
+            ...lead,
+            niche: lead.niche || activeNiche
+          }));
           const isMock = prevLeads.some(l => l.id === 'l-1' || l.id === 'l-2');
-          const hasNew = waLeads.some(item => !prevLeads.some(existing => existing.id === item.id));
+          const hasNew = normalizedLeads.some(item => !prevLeads.some(existing => existing.id === item.id));
           if (hasNew && prevLeads.length > 0 && !isMock) {
             triggerToast("New Lead captured from WhatsApp AI!", "green");
-            addActivity(`New lead captured from WhatsApp: ${waLeads[waLeads.length - 1].name}`, 'success');
+            addActivity(`New lead captured from WhatsApp: ${normalizedLeads[normalizedLeads.length - 1].name}`, 'success');
             playAudioSfx('receive');
             flashTabTitle("⚠️ New WhatsApp Lead!");
           }
-          localStorage.setItem('frontdesk_leads', JSON.stringify(waLeads));
-          return waLeads;
+          localStorage.setItem('frontdesk_leads', JSON.stringify(normalizedLeads));
+          return normalizedLeads;
         });
       }
 
@@ -846,10 +850,18 @@ export default function App() {
       const emailKey = user.email.toLowerCase();
       
       const localLeads = localStorage.getItem(`frontdesk_leads_${emailKey}`);
-      setLeads(localLeads ? JSON.parse(localLeads) : []);
+      if (localLeads) {
+        setLeads(JSON.parse(localLeads).map(l => ({ ...l, niche: l.niche || activeNiche })));
+      } else {
+        setLeads([]);
+      }
 
       const localAppts = localStorage.getItem(`frontdesk_appts_${emailKey}`);
-      setAppointments(localAppts ? JSON.parse(localAppts) : []);
+      if (localAppts) {
+        setAppointments(JSON.parse(localAppts).map(a => ({ ...a, niche: a.niche || activeNiche, dateTime: a.dateTime || a.date_time || '' })));
+      } else {
+        setAppointments([]);
+      }
 
       setReferrals([]);
 
