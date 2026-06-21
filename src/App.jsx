@@ -672,12 +672,12 @@ export default function App() {
   };
 
   const handleGoogleRatingClick = () => {
-    if (user?.reviewUrl && user.reviewUrl.trim() !== '') {
-      window.open(user.reviewUrl.trim(), '_blank');
+    if (user?.googlePlaceId && user.googlePlaceId.trim() !== '') {
+      window.open(`https://search.google.com/local/reviews?placeid=${user.googlePlaceId.trim()}`, '_blank');
       return;
     }
-    if (user?.googlePlaceId && user.googlePlaceId.trim() !== '') {
-      window.open(`https://search.google.com/local/writereview?placeid=${user.googlePlaceId.trim()}`, '_blank');
+    if (user?.reviewUrl && user.reviewUrl.trim() !== '') {
+      window.open(user.reviewUrl.trim(), '_blank');
       return;
     }
     const query = user?.businessName || user?.name || 'dentist salon near me';
