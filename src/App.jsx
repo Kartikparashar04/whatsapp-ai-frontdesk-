@@ -633,10 +633,24 @@ export default function App() {
     { name: "Glamour & Co Salon (Koramangala)", address: "80 Feet Rd, 4th Block, Koramangala, Bengaluru, 560034", placeId: "ChIJK1T_t44RrjsR4P7S62oXgCf", apiKey: "AIzaSyMockKey_GlamourKoramangala_661925" }
   ];
 
-  const handlePlaceSearchChange = (e) => {
+  const handlePlaceSearchChange = async (e) => {
     const value = e.target.value;
     setPlaceSearchInput(value);
     if (value.trim().length > 1) {
+      try {
+        const response = await authenticatedFetch(`${BACKEND_URL}/v1/places-autocomplete?query=${encodeURIComponent(value)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.predictions) {
+            setPlaceMatches(data.predictions);
+            setPlaceDropdownOpen(true);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Autocomplete fetch error:", err);
+      }
+      // Fallback to local mock if error or key is not set yet
       const filtered = MOCK_PLACES.filter(p => p.name.toLowerCase().includes(value.toLowerCase()));
       setPlaceMatches(filtered);
       setPlaceDropdownOpen(true);
@@ -652,9 +666,9 @@ export default function App() {
     
     const keyInput = document.getElementsByName('googleApiKey')[0];
     const idInput = document.getElementsByName('googlePlaceId')[0];
-    if (keyInput) keyInput.value = match.apiKey;
     if (idInput) idInput.value = match.placeId;
-    triggerToast("Google Place details auto-filled! Click save to apply.", "green");
+    if (keyInput && match.apiKey) keyInput.value = match.apiKey;
+    triggerToast("Google Place ID auto-filled! Click save to apply.", "green");
   };
 
   // Chatbot State Machine tracking

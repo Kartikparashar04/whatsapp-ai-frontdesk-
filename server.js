@@ -946,6 +946,43 @@ app.get('/v1/google-reviews', checkAuth, async (req, res) => {
   }
 });
 
+/**
+ * 3g. GET Google Places Autocomplete search results
+ */
+app.get('/v1/places-autocomplete', checkAuth, async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({ success: false, error: 'Query must be at least 2 characters.' });
+    }
+
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!apiKey) {
+      // Return empty predictions silently if key is not set
+      return res.status(200).json({ success: true, predictions: [] });
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.predictions) {
+      const matches = data.predictions.map(p => ({
+        name: p.structured_formatting ? p.structured_formatting.main_text : p.description,
+        address: p.description,
+        placeId: p.place_id
+      }));
+      return res.status(200).json({ success: true, predictions: matches });
+    } else {
+      console.warn('[Google Places Autocomplete API Error]', data.error_message || data.status);
+      return res.status(200).json({ success: true, predictions: [] });
+    }
+  } catch (error) {
+    console.error('Error in places-autocomplete:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/v1/check-user-exists', async (req, res) => {
   try {
     const { email, phone } = req.body;
