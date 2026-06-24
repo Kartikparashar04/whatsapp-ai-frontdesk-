@@ -1631,9 +1631,15 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
  * Helper: Call Meta Graph API to send WhatsApp message
  */
 async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
-  const token = (profile?.whatsappConfig?.accessToken && !profile.whatsappConfig.accessToken.includes('secure_bearer'))
+  const profileEmail = profile?.email?.toLowerCase() || '';
+  const isAdmin = profileEmail === 'kartikparashar15@gmail.com' || profileEmail === 'admin@frontdesk.com';
+  
+  // Use the system META_ACCESS_TOKEN if it's the admin's profile, or if no custom token is provided.
+  // Otherwise, use the user's custom access token to prevent cross-user token usage.
+  const token = (profile?.whatsappConfig?.accessToken && !profile.whatsappConfig.accessToken.includes('secure_bearer') && !isAdmin)
     ? profile.whatsappConfig.accessToken
     : META_ACCESS_TOKEN;
+    
   const phoneId = profile?.phoneNumberId || profile?.whatsappConfig?.phoneNumberId || PHONE_NUMBER_ID;
 
   const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
@@ -1659,29 +1665,8 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
     });
     console.log('Message sent successfully. Message ID:', response.data.messages[0].id);
   } catch (error) {
-    const isAuthError = error.response && 
-      (error.response.status === 401 || 
-       (error.response.data?.error?.code === 190) || 
-       (error.response.data?.error?.message?.includes('Authentication')));
-
-    if (isAuthError && token !== META_ACCESS_TOKEN) {
-      console.warn(`[WhatsApp API] Profile access token failed authentication. Retrying with system META_ACCESS_TOKEN...`);
-      try {
-        const response = await axios.post(url, payload, {
-          headers: {
-            'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        console.log('Message sent successfully on fallback retry. Message ID:', response.data.messages[0].id);
-      } catch (retryError) {
-        console.error('Meta Graph API Error on fallback retry:', retryError.response?.data || retryError.message);
-        throw new Error(retryError.response?.data?.error?.message || retryError.message);
-      }
-    } else {
-      console.error('Meta Graph API Error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.error?.message || error.message);
-    }
+    console.error('Meta Graph API Error:', error.response?.data || error.message);
+    throw new Error(error.response?.data?.error?.message || error.message);
   }
 }
 
