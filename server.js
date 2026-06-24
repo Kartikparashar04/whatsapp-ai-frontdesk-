@@ -59,8 +59,60 @@ async function initSQLite() {
       // Ignore if exists or errors
     }
     
+    const dbPath = path.join(dataDir, 'database.db');
+    const oldDbPath = path.join(process.cwd(), 'database.db');
+    
+    let shouldCopy = false;
+    
+    // Check if new database exists
+    try {
+      await fs.access(dbPath);
+      // It exists, let's check if it has no actual business profiles
+      const tempDb = await open({
+        filename: dbPath,
+        driver: sqlite3.Database
+      });
+      try {
+        const rowCount = await tempDb.get("SELECT COUNT(*) as count FROM business_profiles WHERE email != 'kartikparashar15@gmail.com' AND email != 'admin@frontdesk.com'");
+        if (!rowCount || rowCount.count === 0) {
+          shouldCopy = true;
+        }
+      } catch (err) {
+        // Table might not exist yet
+        shouldCopy = true;
+      }
+      await tempDb.close();
+    } catch (e) {
+      // New database doesn't exist
+      shouldCopy = true;
+    }
+
+    if (shouldCopy) {
+      // Check if old database exists
+      let oldDbExists = false;
+      try {
+        await fs.access(oldDbPath);
+        oldDbExists = true;
+      } catch (e) {
+        oldDbExists = false;
+      }
+
+      if (oldDbExists) {
+        console.log(`[Migration] Copying old database from ${oldDbPath} to ${dbPath}`);
+        try {
+          try {
+            await fs.unlink(dbPath);
+          } catch (err) {}
+          await fs.copyFile(oldDbPath, dbPath);
+          console.log('[Migration] Database copied successfully!');
+        } catch (copyErr) {
+          console.error('[Migration] Failed to copy old database:', copyErr.message);
+        }
+      }
+    }
+
     db = await open({
-      filename: path.join(dataDir, 'database.db'),
+      filename: dbPath,
       driver: sqlite3.Database
     });
 
