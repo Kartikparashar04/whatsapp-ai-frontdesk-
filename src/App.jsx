@@ -914,7 +914,7 @@ export default function App() {
   // Fetch fresh profile state on mount to sync subscription status
   useEffect(() => {
     if (user) {
-      if (auth.currentUser) {
+      if (auth.currentUser && user.role !== 'admin') {
         resolveUserProfileAndSetSession(auth.currentUser);
       } else {
         resolveUserProfileAndSetSession(user);
@@ -1040,9 +1040,19 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAdminBusinesses(data);
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.error("fetchAdminBusinesses failed:", res.status, errText);
+        try {
+          const errJson = JSON.parse(errText);
+          triggerToast(errJson.error || `Failed to fetch businesses: ${res.status}`, "red");
+        } catch {
+          triggerToast(`Failed to fetch businesses: ${res.status} ${errText}`, "red");
+        }
       }
     } catch (err) {
-      console.error(err);
+      console.error("fetchAdminBusinesses network error:", err);
+      triggerToast(`Network error fetching admin businesses: ${err.message}`, "red");
     }
   };
 
@@ -1133,6 +1143,9 @@ export default function App() {
       if (firebaseConfig.apiKey.includes("ChangeMe")) {
         const dummyToken = user ? user.email : 'kartikparashar15@gmail.com';
         headers['Authorization'] = `Bearer ${dummyToken}`;
+      } else if (user && user.role === 'admin') {
+        // SaaS Super Admin uses local credentials fallback to prevent conflict with active Firebase phone sessions
+        headers['Authorization'] = `Bearer ${user.email}`;
       } else if (auth.currentUser) {
         const token = await auth.currentUser.getIdToken(true);
         headers['Authorization'] = `Bearer ${token}`;
@@ -1216,7 +1229,7 @@ export default function App() {
     // Fetch the actual profile from the backend SQLite DB to get the latest database data
     try {
       const headers = { 'Content-Type': 'application/json' };
-      if (!firebaseConfig.apiKey.includes("ChangeMe") && auth.currentUser) {
+      if (!firebaseConfig.apiKey.includes("ChangeMe") && auth.currentUser && authUser.role !== 'admin' && user?.role !== 'admin') {
         try {
           const token = await auth.currentUser.getIdToken(true);
           headers['Authorization'] = `Bearer ${token}`;
