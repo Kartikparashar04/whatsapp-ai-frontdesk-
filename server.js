@@ -353,9 +353,12 @@ async function checkAuth(req, res, next) {
         };
       }
 
-      const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', req.user.ownerEmail);
-      if (profile && profile.is_suspended === 1) {
-        return res.status(403).json({ success: false, error: 'Account suspended by administrator.' });
+      const isAdminUser = email.toLowerCase() === 'kartikparashar15@gmail.com' || email.toLowerCase() === 'admin@frontdesk.com';
+      if (!isAdminUser) {
+        const profile = await db.get('SELECT is_suspended FROM business_profiles WHERE email = ?', req.user.ownerEmail);
+        if (profile && profile.is_suspended === 1) {
+          return res.status(403).json({ success: false, error: 'Account suspended by administrator.' });
+        }
       }
     } else {
       req.user.ownerEmail = email.toLowerCase();
