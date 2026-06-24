@@ -1632,14 +1632,25 @@ You MUST reply ONLY with a valid JSON block matching this exact structure, do no
  */
 async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
   const profileEmail = profile?.email?.toLowerCase() || '';
-  const isAdmin = profileEmail === 'kartikparashar15@gmail.com' || profileEmail === 'admin@frontdesk.com';
+  const isAdmin = profileEmail === 'kartikparashar15@gmail.com' || profileEmail === 'admin@frontdesk.com' || profile?.role === 'admin';
   
-  // Use the system META_ACCESS_TOKEN if it's the admin's profile, or if no custom token is provided.
-  // Otherwise, use the user's custom access token to prevent cross-user token usage.
-  const token = (profile?.whatsappConfig?.accessToken && !profile.whatsappConfig.accessToken.includes('secure_bearer') && !isAdmin)
-    ? profile.whatsappConfig.accessToken
-    : META_ACCESS_TOKEN;
-    
+  let token = '';
+  const hasCustomToken = profile?.whatsappConfig?.accessToken && 
+                         !profile.whatsappConfig.accessToken.includes('secure_bearer') && 
+                         profile.whatsappConfig.accessToken.trim() !== '';
+
+  if (isAdmin) {
+    // Admin uses their custom profile token if configured; otherwise falls back to system META_ACCESS_TOKEN
+    token = hasCustomToken ? profile.whatsappConfig.accessToken : META_ACCESS_TOKEN;
+  } else {
+    // Regular users MUST use their own token. No fallback to global system token.
+    if (hasCustomToken) {
+      token = profile.whatsappConfig.accessToken;
+    } else {
+      throw new Error('WhatsApp API Access Token is not configured. Please save your token in My Profile -> WhatsApp API Credentials.');
+    }
+  }
+  
   const phoneId = profile?.phoneNumberId || profile?.whatsappConfig?.phoneNumberId || PHONE_NUMBER_ID;
 
   const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
