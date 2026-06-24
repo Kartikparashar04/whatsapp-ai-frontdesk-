@@ -2471,20 +2471,59 @@ export default function App() {
   };
 
   // Action: Manual Follow Up
-  const handleFollowUpLead = (leadId) => {
+  const handleFollowUpLead = async (leadId) => {
     const lead = leads.find(l => l.id === leadId);
     if (!lead) return;
 
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'followed_up' } : l));
-    addActivity(`Follow-up WhatsApp sent to ${lead.name}`, 'info');
-    triggerToast(`Follow-up template pushed!`, 'purple');
+    const followUpText = `Hi ${lead.name}, still looking to schedule your session for ${lead.requirement}? Let me know if you would like to book a slot.`;
 
-    setChatMessages(prev => [...prev, {
-      id: `msg-system-${Date.now()}`,
-      text: `📲 [AUTO-FOLLOWUP SENT TO ${lead.phone}]: Hi ${lead.name}, still looking to schedule your session for ${lead.requirement}? Let me know if you would like to book a slot.`,
-      sender: 'bot',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }]);
+    try {
+      // Update status locally first
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'followed_up' } : l));
+      triggerToast(`Sending follow-up...`, 'info');
+
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/campaigns/send-single`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: lead.name,
+          phone: lead.phone,
+          message: followUpText
+        })
+      });
+
+      if (res.ok) {
+        addActivity(`Follow-up WhatsApp sent to ${lead.name}`, 'info');
+        triggerToast(`Follow-up template pushed!`, 'purple');
+
+        setChatMessages(prev => [...prev, {
+          id: `msg-system-${Date.now()}`,
+          text: `📲 [AUTO-FOLLOWUP SENT TO ${lead.phone}]: ${followUpText}`,
+          sender: 'bot',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
+
+        // Sync lead status update to backend database
+        await authenticatedFetch(`${BACKEND_URL}/v1/leads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...lead,
+            status: 'followed_up'
+          })
+        });
+      } else {
+        const errData = await res.json();
+        triggerToast(`Follow-up failed: ${errData.error || 'Server error'}`, 'red');
+        // Revert status
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: lead.status } : l));
+      }
+    } catch (err) {
+      console.error("Error sending follow-up:", err);
+      triggerToast(`Follow-up error: ${err.message}`, 'red');
+      // Revert status
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: lead.status } : l));
+    }
   };
 
   // Action: Delete Lead
@@ -2526,12 +2565,48 @@ export default function App() {
   };
 
   // Action: Change Appointment Status
-  const handleUpdateApptStatus = (apptId, status) => {
+  const handleUpdateApptStatus = async (apptId, status) => {
+    // Check if it's a lead ID (Leads table has actions triggering this)
+    const lead = leads.find(l => l.id === apptId);
+    if (lead) {
+      setLeads(prev => prev.map(l => l.id === apptId ? { ...l, status } : l));
+      addActivity(`Lead ${lead.name} updated to ${status}`, 'info');
+      triggerToast(`Lead updated to ${status}`);
+
+      try {
+        await authenticatedFetch(`${BACKEND_URL}/v1/leads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...lead,
+            status
+          })
+        });
+      } catch (err) {
+        console.error("Error syncing lead status update:", err);
+      }
+      return;
+    }
+
+    // Otherwise treat as appointment
     setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status } : a));
     const appt = appointments.find(a => a.id === apptId);
     if (appt) {
       addActivity(`Appointment for ${appt.name} updated to ${status}`, 'info');
       triggerToast(`Booking updated to ${status}`);
+
+      try {
+        await authenticatedFetch(`${BACKEND_URL}/v1/appointments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...appt,
+            status
+          })
+        });
+      } catch (err) {
+        console.error("Error syncing appointment status update:", err);
+      }
     }
   };
 
