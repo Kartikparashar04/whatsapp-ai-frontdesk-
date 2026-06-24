@@ -1659,8 +1659,29 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
     });
     console.log('Message sent successfully. Message ID:', response.data.messages[0].id);
   } catch (error) {
-    console.error('Meta Graph API Error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.error?.message || error.message);
+    const isAuthError = error.response && 
+      (error.response.status === 401 || 
+       (error.response.data?.error?.code === 190) || 
+       (error.response.data?.error?.message?.includes('Authentication')));
+
+    if (isAuthError && token !== META_ACCESS_TOKEN) {
+      console.warn(`[WhatsApp API] Profile access token failed authentication. Retrying with system META_ACCESS_TOKEN...`);
+      try {
+        const response = await axios.post(url, payload, {
+          headers: {
+            'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('Message sent successfully on fallback retry. Message ID:', response.data.messages[0].id);
+      } catch (retryError) {
+        console.error('Meta Graph API Error on fallback retry:', retryError.response?.data || retryError.message);
+        throw new Error(retryError.response?.data?.error?.message || retryError.message);
+      }
+    } else {
+      console.error('Meta Graph API Error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error?.message || error.message);
+    }
   }
 }
 
