@@ -102,7 +102,83 @@ admin.initializeApp({
 });
 
 const app = express();
-app.use(express.json());
+
+// Parse json with raw body capture for signature validation
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+// Zero-dependency memory-based IP Rate Limiter
+const rateLimitMap = new Map();
+function createRateLimiter(limit, windowMs) {
+  return (req, res, next) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const now = Date.now();
+    if (!rateLimitMap.has(ip)) {
+      rateLimitMap.set(ip, []);
+    }
+    const timestamps = rateLimitMap.get(ip);
+    const activeTimestamps = timestamps.filter(t => now - t < windowMs);
+    if (activeTimestamps.length >= limit) {
+      console.warn(`[Rate Limiter] Blocked IP: ${ip} on route: ${req.originalUrl || req.url}`);
+      return res.status(429).json({ success: false, error: 'Too many requests from this IP. Please try again later.' });
+    }
+    activeTimestamps.push(now);
+    rateLimitMap.set(ip, activeTimestamps);
+    next();
+  };
+}
+
+// Global general rate limit: max 120 requests per minute
+const globalRateLimiter = createRateLimiter(120, 60 * 1000);
+app.use((req, res, next) => {
+  // Bypass rate limiting for webhook validation/events and static assets
+  if (req.path.startsWith('/v1/webhooks') || req.path === '/privacy' || req.path.startsWith('/assets/') || req.path === '/favicon.svg') {
+    return next();
+  }
+  globalRateLimiter(req, res, next);
+});
+
+// Stricter rate limiter for sensitive endpoints: 10 requests per minute
+const sensitiveRateLimiter = createRateLimiter(10, 60 * 1000);
+
+// Webhook signature verification middleware
+function verifyMetaWebhookSignature(req, res, next) {
+  const signature = req.headers['x-hub-signature-256'];
+  const appSecret = process.env.META_APP_SECRET;
+
+  if (!appSecret) {
+    console.warn('[Webhook Warning]: META_APP_SECRET is not configured in .env. Signature check bypassed.');
+    return next();
+  }
+
+  if (!signature) {
+    console.error('[Webhook Error]: Signature verification failed - Header X-Hub-Signature-256 missing.');
+    return res.status(401).send('Signature missing');
+  }
+
+  const elements = signature.split('sha256=');
+  const signatureHash = elements[1];
+  
+  if (!req.rawBody) {
+    console.error('[Webhook Error]: Raw request body buffer missing.');
+    return res.status(500).send('Verification failed due to internal parsing error');
+  }
+
+  const expectedHash = crypto
+    .createHmac('sha256', appSecret)
+    .update(req.rawBody)
+    .digest('hex');
+
+  if (signatureHash !== expectedHash) {
+    console.error(`[Webhook Error]: Signature mismatch. Expected: ${expectedHash}, Received: ${signatureHash}`);
+    return res.status(401).send('Signature mismatch');
+  }
+
+  next();
+}
 
 // Log requests first so we see all incoming traffic (including pre-CORS logs)
 app.use((req, res, next) => {
@@ -153,6 +229,50 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Automatic daily backup manager for SQLite database with auto-rotation (7 days limit)
+async function backupDatabase() {
+  try {
+    const dataDir = path.join(process.cwd(), 'data');
+    const dbPath = path.join(dataDir, 'database.db');
+    
+    // Check if database exists first
+    try {
+      await fs.access(dbPath);
+    } catch (e) {
+      console.log('[Backup] Database does not exist yet. Bypassing backup.');
+      return;
+    }
+    
+    const backupDir = path.join(process.cwd(), 'backups');
+    await fs.mkdir(backupDir, { recursive: true });
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = path.join(backupDir, `database-backup-${timestamp}.db`);
+    
+    await fs.copyFile(dbPath, backupPath);
+    console.log(`[Backup] SQLite Database backed up successfully to: ${backupPath}`);
+    
+    // Clean up backups older than 7 days
+    const files = await fs.readdir(backupDir);
+    const now = Date.now();
+    for (const file of files) {
+      const filePath = path.join(backupDir, file);
+      const stats = await fs.stat(filePath);
+      const ageMs = now - stats.mtimeMs;
+      if (ageMs > 7 * 24 * 60 * 60 * 1000) { // 7 days
+        await fs.unlink(filePath);
+        console.log(`[Backup Clean] Deleted old backup file: ${filePath}`);
+      }
+    }
+  } catch (err) {
+    console.error('[Backup Error]: Failed to backup database:', err.message);
+  }
+}
+
+// Trigger initial backup in 15 seconds, and then schedule every 24 hours
+setTimeout(backupDatabase, 15000);
+setInterval(backupDatabase, 24 * 60 * 60 * 1000);
 
 
 // Diagnostics endpoint to view console logs
@@ -472,13 +592,20 @@ async function checkAuth(req, res, next) {
     const token = authHeader.split('Bearer ')[1];
     let email = 'kartikparashar15@gmail.com';
     
-    // Demo Mode check (mock validation or non-JWT fallback)
-    if (!process.env.VITE_FIREBASE_API_KEY || 
-        process.env.VITE_FIREBASE_API_KEY.includes("ChangeMe") || 
-        token.split('.').length !== 3) {
+    // Check if we are running in Demo Mode (when Firebase API Key is missing or placeholder)
+    const isDemoMode = !process.env.VITE_FIREBASE_API_KEY || 
+                       process.env.VITE_FIREBASE_API_KEY.includes("ChangeMe") ||
+                       process.env.VITE_FIREBASE_API_KEY.includes("Placeholder");
+                       
+    if (isDemoMode) {
+      // In demo mode, allow mock token validation (non-JWT fallback)
       email = token.includes('@') ? token : 'kartikparashar15@gmail.com';
       req.user = { email };
     } else {
+      // In production mode, require a valid 3-part JWT token
+      if (token.split('.').length !== 3) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token format.' });
+      }
       const decodedToken = await admin.auth().verifyIdToken(token);
       let resolvedEmail = decodedToken.email;
       if (!resolvedEmail && decodedToken.phone_number) {
@@ -680,7 +807,7 @@ const processedMessageIds = new Set();
 /**
  * 2. Webhook Event Handler (Triggered when a customer sends a message)
  */
-app.post('/v1/webhooks', async (req, res) => {
+app.post('/v1/webhooks', verifyMetaWebhookSignature, async (req, res) => {
   try {
     const body = req.body;
     console.log('Webhook received event body:', JSON.stringify(body, null, 2));
@@ -1228,7 +1355,7 @@ app.get('/v1/places-autocomplete', checkAuth, async (req, res) => {
   }
 });
 
-app.post('/v1/check-user-exists', async (req, res) => {
+app.post('/v1/check-user-exists', sensitiveRateLimiter, async (req, res) => {
   try {
     const { email, phone } = req.body;
     if (!db) {
@@ -1672,7 +1799,7 @@ app.post('/v1/reviews', checkAuth, async (req, res) => {
 /**
  * 13. POST Live AI Simulator Endpoint
  */
-app.post('/v1/test-agent-reply', checkAuth, async (req, res) => {
+app.post('/v1/test-agent-reply', checkAuth, sensitiveRateLimiter, async (req, res) => {
   try {
     const { message, customerPhone, customerName } = req.body;
     const emailKey = req.user.ownerEmail;
