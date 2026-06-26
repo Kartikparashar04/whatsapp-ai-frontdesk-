@@ -103,29 +103,56 @@ admin.initializeApp({
 
 const app = express();
 app.use(express.json());
+
+// Log requests first so we see all incoming traffic (including pre-CORS logs)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const hasAuth = req.headers.authorization ? 'Yes' : 'No';
+  console.log(`[HTTP] ${req.method} ${req.url} - Origin: ${origin || 'None'} - HasAuthHeader: ${hasAuth}`);
+  next();
+});
+
 const allowedOrigins = [
   'https://app.frontdeskai.shop',
+  'http://app.frontdeskai.shop',
+  'https://deskflowai.shop',
+  'http://deskflowai.shop',
+  'https://app.deskflowai.shop',
+  'http://app.deskflowai.shop',
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
 ];
 
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+    
+    // Check if origin is in our allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
     }
-    return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+    
+    // Check for localhost/127.0.0.1 with any port
+    if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check for any subdomain/domain of frontdeskai.shop or deskflowai.shop (both http and https)
+    if (/^https?:\/\/([a-z0-9-]+\.)*(frontdeskai\.shop|deskflowai\.shop)$/i.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow GCP or local network IP addresses if the user accesses via IP
+    if (/^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error(`The CORS policy for this site does not allow access from the specified Origin: ${origin}`), false);
   },
   credentials: true
 }));
-
-// Request logging middleware for diagnostics
-app.use((req, res, next) => {
-  const hasAuth = req.headers.authorization ? 'Yes' : 'No';
-  console.log(`[HTTP] ${req.method} ${req.url} - HasAuthHeader: ${hasAuth}`);
-  next();
-});
 
 
 // Diagnostics endpoint to view console logs
