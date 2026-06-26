@@ -149,9 +149,28 @@ const playAudioSfx = (type) => {
 };
 
 // Validation Helper Functions
+const formatPhoneWithDefault91 = (phone) => {
+  if (!phone) return '';
+  // Strip all characters except digits and the plus symbol
+  let clean = phone.replace(/[^\d+]/g, '');
+  if (clean.startsWith('+')) {
+    return clean;
+  }
+  // If it starts with 91 and has 12 digits, prepend '+'
+  if (clean.startsWith('91') && clean.length === 12) {
+    return '+' + clean;
+  }
+  // If it starts with 0 and is 11 digits, strip the leading 0 and prepend '+91'
+  if (clean.startsWith('0') && clean.length === 11) {
+    return '+91' + clean.slice(1);
+  }
+  // Otherwise, prepend '+91'
+  return '+91' + clean;
+};
+
 const validatePhoneNumber = (phone) => {
   if (!phone) return false;
-  const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+  const cleanPhone = formatPhoneWithDefault91(phone);
   const phoneRegex = /^\+[1-9]\d{9,14}$/;
   return phoneRegex.test(cleanPhone);
 };
@@ -209,9 +228,9 @@ function OnboardingWizard({ user, setUser, nicheConfigs, setNicheConfigs, trigge
         return;
       }
     } else if (step === 2) {
-      const cleanedPhone = businessPhone.replace(/[\s\-\(\)]/g, '');
+      const cleanedPhone = formatPhoneWithDefault91(businessPhone);
       if (!validatePhoneNumber(cleanedPhone)) {
-        alert("Please enter a valid business phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+        alert("Please enter a valid business phone number (e.g., +919876543210).");
         return;
       }
       setBusinessPhone(cleanedPhone);
@@ -1509,9 +1528,9 @@ export default function App() {
     e.preventDefault();
     if (!phoneNumber) return;
 
-    const cleanedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    const cleanedPhone = formatPhoneWithDefault91(phoneNumber);
     if (!validatePhoneNumber(cleanedPhone)) {
-      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      alert("Please enter a valid phone number (e.g., +919876543210).");
       return;
     }
 
@@ -2624,9 +2643,9 @@ export default function App() {
       alert("Please enter a valid name (at least 2 letters, no special characters or numbers).");
       return;
     }
-    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const cleanedPhone = formatPhoneWithDefault91(phone);
     if (!validatePhoneNumber(cleanedPhone)) {
-      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      alert("Please enter a valid phone number (e.g., +919876543210).");
       return;
     }
     if (!requirement || requirement.length < 2) {
@@ -2676,9 +2695,9 @@ export default function App() {
       alert("Please enter a valid name (at least 2 letters, no special characters or numbers).");
       return;
     }
-    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const cleanedPhone = formatPhoneWithDefault91(phone);
     if (!validatePhoneNumber(cleanedPhone)) {
-      alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+      alert("Please enter a valid phone number (e.g., +919876543210).");
       return;
     }
     if (!service || service.length < 2) {
@@ -3902,9 +3921,9 @@ export default function App() {
                     <button 
                       type="button" 
                       onClick={() => {
-                        const cleanedPhone = metaPhoneInput.replace(/[\s\-\(\)]/g, '');
+                        const cleanedPhone = formatPhoneWithDefault91(metaPhoneInput);
                         if (!validatePhoneNumber(cleanedPhone)) {
-                          alert("Please enter a valid phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+                          alert("Please enter a valid phone number (e.g., +919876543210).");
                           return;
                         }
                         setMetaPhoneInput(cleanedPhone);
@@ -5817,9 +5836,9 @@ export default function App() {
                     alert("Please enter a valid business website URL.");
                     return;
                   }
-                  const cleanedPhone = updatedPhone.replace(/[\s\-\(\)]/g, '');
+                  const cleanedPhone = formatPhoneWithDefault91(updatedPhone);
                   if (form.businessPhone && !validatePhoneNumber(cleanedPhone)) {
-                    alert("Please enter a valid business phone number with country code (e.g., +919876543210). It must start with '+' and have a proper country code and digits.");
+                    alert("Please enter a valid business phone number (e.g., +919876543210).");
                     return;
                   }
                   if (form.businessAddress && (!updatedAddress || updatedAddress.length < 5)) {
