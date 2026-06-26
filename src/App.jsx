@@ -859,7 +859,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     syncCRMData();
-    const interval = setInterval(syncCRMData, 5000);
+    const interval = setInterval(syncCRMData, 25000);
     return () => clearInterval(interval);
   }, [user, activeNiche]);
 
@@ -4615,6 +4615,20 @@ export default function App() {
                 <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-light)', margin: '0 8px' }}></div>
 
                 <button 
+                  onClick={async () => {
+                    triggerToast("Syncing leads data...", "info");
+                    await syncCRMData();
+                    triggerToast("CRM data synced!", "green");
+                  }}
+                  className="filter-btn" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-purple)' }}
+                  title="Force refresh CRM data"
+                >
+                  <RotateCcw size={14} />
+                  <span>Refresh</span>
+                </button>
+
+                <button 
                   onClick={handleExportCSV}
                   className="filter-btn" 
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-green)' }}
@@ -4765,6 +4779,20 @@ export default function App() {
                 </div>
 
                 <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-light)', margin: '0 8px' }}></div>
+
+                <button 
+                  onClick={async () => {
+                    triggerToast("Syncing bookings data...", "info");
+                    await syncCRMData();
+                    triggerToast("Booking data synced!", "green");
+                  }}
+                  className="filter-btn" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-purple)' }}
+                  title="Force refresh CRM data"
+                >
+                  <RotateCcw size={14} />
+                  <span>Refresh</span>
+                </button>
 
                 <button 
                   onClick={handleExportAppointmentsCSV}
