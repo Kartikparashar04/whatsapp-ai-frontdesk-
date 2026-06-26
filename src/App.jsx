@@ -167,6 +167,7 @@ export default function App() {
   });
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
+  const [campaignAudience, setCampaignAudience] = useState('all-leads');
   
   const [authMode, setAuthMode] = useState('login'); // login, signup, admin_login, forgot_password
   const [authMethod, setAuthMethod] = useState('phone'); // phone, email
@@ -4604,12 +4605,32 @@ export default function App() {
                 
                 <div className="form-group">
                   <label>Select Target Audience</label>
-                  <select id="campaign-audience" style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)' }}>
+                  <select 
+                    id="campaign-audience" 
+                    onChange={(e) => setCampaignAudience(e.target.value)}
+                    style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)' }}
+                  >
                     <option value="all-leads">All Registered Leads ({leads.filter(l => l.niche === activeNiche).length} contacts)</option>
                     <option value="new-leads">Only New Leads ({leads.filter(l => l.niche === activeNiche && l.status === 'new').length} contacts)</option>
                     <option value="all-appts">Appointment Clients ({appointments.filter(a => a.niche === activeNiche).length} contacts)</option>
+                    <option value="custom-list">Custom Imported List (Copy-Paste Names & Numbers)</option>
                   </select>
                 </div>
+
+                {campaignAudience === 'custom-list' && (
+                  <div className="form-group animate-slide-in">
+                    <label>Paste Recipients List (Format: Name, Phone - one per line)</label>
+                    <textarea 
+                      id="campaign-custom-recipients"
+                      rows={5}
+                      placeholder={"John Doe, +919876543210\nJane Smith, 9900088000"}
+                      style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      💡 Supports Comma (,) or Tab separated values. Copy-paste directly from Excel/Google Sheets.
+                    </p>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label>Campaign Template</label>
@@ -4654,8 +4675,26 @@ export default function App() {
                       targets = leads.filter(l => l.niche === activeNiche);
                     } else if (aud === 'new-leads') {
                       targets = leads.filter(l => l.niche === activeNiche && l.status === 'new');
-                    } else {
+                    } else if (aud === 'all-appts') {
                       targets = appointments.filter(a => a.niche === activeNiche);
+                    } else if (aud === 'custom-list') {
+                      const customText = document.getElementById("campaign-custom-recipients")?.value || '';
+                      const lines = customText.split('\n');
+                      lines.forEach(line => {
+                        if (!line.trim()) return;
+                        let parts = line.split(',');
+                        if (parts.length < 2) {
+                          parts = line.split('\t'); // tab separated (Excel copy-paste)
+                        }
+                        if (parts.length >= 2) {
+                          const name = parts[0].trim();
+                          const rawPhone = parts[1].trim();
+                          const phone = formatPhoneWithDefault91(rawPhone);
+                          if (name && validatePhoneNumber(phone)) {
+                            targets.push({ name, phone });
+                          }
+                        }
+                      });
                     }
 
                     if (targets.length === 0) {

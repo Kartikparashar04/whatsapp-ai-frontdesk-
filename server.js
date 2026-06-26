@@ -747,7 +747,35 @@ function parseCleanJSON(rawText) {
     clean = clean.replace(/^```(json)?/i, '');
     clean = clean.replace(/```$/i, '');
   }
-  return JSON.parse(clean.trim());
+  
+  try {
+    return JSON.parse(clean.trim());
+  } catch (err) {
+    console.warn('[Parser Warning] Failed to parse raw AI JSON output. Attempting regex extraction.', err.message);
+    try {
+      // Find the first JSON block { ... } in the text
+      const jsonMatch = clean.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0].trim());
+      } else {
+        throw new Error('No JSON block found in string.');
+      }
+    } catch (fallbackErr) {
+      console.error('[Parser Critical Error] JSON extraction failed completely. Generating safe fallback object.', fallbackErr.message);
+      // Fallback: Return a valid mock format using rawText as the reply
+      return {
+        reply: rawText.replace(/[\{\}\"\[\]:]/g, ' ').trim().slice(0, 150) + "...", // Safe sanitized text
+        isBooking: false,
+        isLead: false,
+        isHandoff: false,
+        isCancellation: false,
+        customerName: 'Customer',
+        service: null,
+        dateTime: null,
+        notes: null
+      };
+    }
+  }
 }
 
 /**
