@@ -4619,7 +4619,43 @@ export default function App() {
 
                 {campaignAudience === 'custom-list' && (
                   <div className="form-group animate-slide-in">
-                    <label>Paste Recipients List (Format: Name, Phone - one per line)</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ margin: 0 }}>Recipients List (Format: Name, Phone)</label>
+                      
+                      {/* Hidden file input for CSV/TXT upload */}
+                      <input 
+                        type="file" 
+                        id="campaign-csv-upload" 
+                        accept=".csv,.txt"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const text = event.target.result;
+                            const textarea = document.getElementById("campaign-custom-recipients");
+                            if (textarea) {
+                              textarea.value = text;
+                              triggerToast("File loaded successfully!", "green");
+                            }
+                          };
+                          reader.readAsText(file);
+                        }}
+                      />
+                      
+                      <button 
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => document.getElementById('campaign-csv-upload').click()}
+                        style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
+                      >
+                        <UploadCloud size={12} />
+                        Upload .CSV / .TXT
+                      </button>
+                    </div>
+                    
                     <textarea 
                       id="campaign-custom-recipients"
                       rows={5}
@@ -4627,7 +4663,7 @@ export default function App() {
                       style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.85rem' }}
                     />
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      💡 Supports Comma (,) or Tab separated values. Copy-paste directly from Excel/Google Sheets.
+                      💡 Supports Comma (,) or Tab separated values. Copy-paste directly from Excel/Google Sheets or upload a .CSV/.TXT file.
                     </p>
                   </div>
                 )}
