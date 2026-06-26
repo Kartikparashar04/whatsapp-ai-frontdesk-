@@ -64,6 +64,14 @@ const app = express();
 app.use(express.json());
 app.use(cors()); // Enable Cross-Origin Resource Sharing for frontend dashboard
 
+// Request logging middleware for diagnostics
+app.use((req, res, next) => {
+  const hasAuth = req.headers.authorization ? 'Yes' : 'No';
+  console.log(`[HTTP] ${req.method} ${req.url} - HasAuthHeader: ${hasAuth}`);
+  next();
+});
+
+
 // Diagnostics endpoint to view console logs
 app.get('/v1/debug-logs', (req, res) => {
   const pin = req.query.pin;
