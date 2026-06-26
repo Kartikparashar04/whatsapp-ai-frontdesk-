@@ -74,6 +74,21 @@ app.get('/v1/debug-logs', (req, res) => {
   return res.status(200).send(debugLogs.join('\n'));
 });
 
+// Diagnostics endpoint to view business profiles inside SQLite
+app.get('/v1/debug-db-profiles', async (req, res) => {
+  const pin = req.query.pin;
+  if (pin !== 'sec_debug_99') {
+    return res.status(401).send('Unauthorized');
+  }
+  try {
+    if (!db) return res.status(500).send('Database not initialized');
+    const rows = await db.all('SELECT email, role, phone_number_id, whatsapp_config FROM business_profiles');
+    return res.status(200).json(rows);
+  } catch (err) {
+    return res.status(500).send(err.message);
+  }
+});
+
 // Initialize Razorpay Client
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummy_key_id_123456',
