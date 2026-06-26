@@ -22,6 +22,39 @@ const mammoth = require('mammoth');
 // Load environment variables
 dotenv.config();
 
+// In-memory logs for remote diagnostics
+const debugLogs = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function addDebugLog(type, args) {
+  const timestamp = new Date().toISOString();
+  const message = args.map(arg => {
+    if (arg instanceof Error) return arg.stack || arg.message;
+    return typeof arg === 'object' ? JSON.stringify(arg) : arg;
+  }).join(' ');
+  debugLogs.push(`[${timestamp}] [${type}] ${message}`);
+  if (debugLogs.length > 500) {
+    debugLogs.shift();
+  }
+}
+
+console.log = (...args) => {
+  addDebugLog('INFO', args);
+  originalLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  addDebugLog('ERROR', args);
+  originalError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  addDebugLog('WARN', args);
+  originalWarn.apply(console, args);
+};
+
 // Initialize Firebase Admin SDK for JWT verification
 admin.initializeApp({
   projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'whatsappapi-1c0d8'
@@ -30,6 +63,16 @@ admin.initializeApp({
 const app = express();
 app.use(express.json());
 app.use(cors()); // Enable Cross-Origin Resource Sharing for frontend dashboard
+
+// Diagnostics endpoint to view console logs
+app.get('/v1/debug-logs', (req, res) => {
+  const pin = req.query.pin;
+  if (pin !== 'sec_debug_99') {
+    return res.status(401).send('Unauthorized');
+  }
+  res.setHeader('Content-Type', 'text/plain');
+  return res.status(200).send(debugLogs.join('\n'));
+});
 
 // Initialize Razorpay Client
 const razorpay = new Razorpay({
