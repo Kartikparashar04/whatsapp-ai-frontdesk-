@@ -182,12 +182,25 @@ async function initSQLite() {
       driver: sqlite3.Database
     });
 
+    // Configure busyTimeout on driver level to prevent SQLITE_BUSY database lock issues
+    if (db.db && typeof db.db.configure === 'function') {
+      db.db.configure('busyTimeout', 5000);
+    }
+
     // Performance Optimization: Enable WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and busy timeout
     await db.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA busy_timeout = 5000;
       PRAGMA synchronous = NORMAL;
     `);
+
+    // Verify journal mode is set to WAL
+    try {
+      const modeRes = await db.get('PRAGMA journal_mode');
+      console.log(`[Database] SQLite journal mode successfully configured to: ${modeRes?.journal_mode?.toUpperCase()}`);
+    } catch (err) {
+      console.warn('[Database] Could not verify SQLite journal mode:', err.message);
+    }
 
     
     await db.exec(`
