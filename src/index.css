@@ -259,12 +259,14 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Main Dashboard Area */
 .main-content {
+  height: 100vh;
   overflow-y: auto;
   padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 28px;
   background: var(--bg-primary);
+  box-sizing: border-box;
 }
 
 @media (max-width: 900px) {
