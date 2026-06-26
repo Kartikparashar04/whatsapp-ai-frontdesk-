@@ -82,7 +82,20 @@ const BACKEND_URL =
     ? 'http://localhost:3000'
     : (import.meta.env.VITE_BACKEND_URL || 'https://app.frontdeskai.shop');
 
-
+// SheetJS (XLSX) Dynamic Loader Helper for Excel uploads
+const loadSheetJS = () => {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) {
+      resolve(window.XLSX);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.onload = () => resolve(window.XLSX);
+    script.onerror = () => reject(new Error("Failed to load Excel parsing library."));
+    document.head.appendChild(script);
+  });
+};
 
 // Document Tab Title Flashing Helper
 const flashTabTitle = (alertMessage) => {
@@ -4622,26 +4635,97 @@ export default function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <label style={{ margin: 0 }}>Recipients List (Format: Name, Phone)</label>
                       
-                      {/* Hidden file input for CSV/TXT upload */}
+                      {/* Hidden file input for CSV/TXT/Excel upload */}
                       <input 
                         type="file" 
                         id="campaign-csv-upload" 
-                        accept=".csv,.txt"
+                        accept=".csv,.txt,.xlsx,.xls"
                         style={{ display: 'none' }}
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (!file) return;
                           
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const text = event.target.result;
-                            const textarea = document.getElementById("campaign-custom-recipients");
-                            if (textarea) {
-                              textarea.value = text;
-                              triggerToast("File loaded successfully!", "green");
-                            }
-                          };
-                          reader.readAsText(file);
+                          const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+                          
+                          if (isExcel) {
+                            loadSheetJS().then((XLSX) => {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                try {
+                                  const data = new Uint8Array(event.target.result);
+                                  const workbook = XLSX.read(data, { type: 'array' });
+                                  const firstSheetName = workbook.SheetNames[0];
+                                  const worksheet = workbook.Sheets[firstSheetName];
+                                  
+                                  const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                                  if (rows.length === 0) {
+                                    triggerToast("The sheet is empty.", "red");
+                                    return;
+                                  }
+                                  
+                                  let formattedRows = [];
+                                  let startIndex = 0;
+                                  
+                                  // Skip header row if it exists
+                                  const firstRow = rows[0];
+                                  if (firstRow && firstRow.some(val => {
+                                    const str = String(val).toLowerCase();
+                                    return str.includes('name') || str.includes('phone') || str.includes('mobile') || str.includes('number');
+                                  })) {
+                                    startIndex = 1;
+                                  }
+                                  
+                                  for (let i = startIndex; i < rows.length; i++) {
+                                    const row = rows[i];
+                                    if (!row || row.length === 0) continue;
+                                    
+                                    let name = "";
+                                    let phone = "";
+                                    
+                                    if (row.length === 1) {
+                                      const val = String(row[0]).trim();
+                                      if (val.match(/^\+?[0-9\s-]{8,15}$/)) {
+                                        phone = val;
+                                      } else {
+                                        name = val;
+                                      }
+                                    } else if (row.length >= 2) {
+                                      name = String(row[0]).trim();
+                                      phone = String(row[1]).trim();
+                                    }
+                                    
+                                    if (name || phone) {
+                                      formattedRows.push(`${name}, ${phone}`);
+                                    }
+                                  }
+                                  
+                                  const csvText = formattedRows.join('\n');
+                                  const textarea = document.getElementById("campaign-custom-recipients");
+                                  if (textarea) {
+                                    textarea.value = csvText;
+                                    triggerToast("Excel file loaded and parsed successfully!", "green");
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                  triggerToast("Failed to parse Excel file.", "red");
+                                }
+                              };
+                              reader.readAsArrayBuffer(file);
+                            }).catch((err) => {
+                              triggerToast(err.message, "red");
+                            });
+                          } else {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const text = event.target.result;
+                              const textarea = document.getElementById("campaign-custom-recipients");
+                              if (textarea) {
+                                textarea.value = text;
+                                triggerToast("File loaded successfully!", "green");
+                              }
+                            };
+                            reader.readAsText(file);
+                          }
                         }}
                       />
                       
@@ -4652,7 +4736,7 @@ export default function App() {
                         style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
                       >
                         <UploadCloud size={12} />
-                        Upload .CSV / .TXT
+                        Upload Excel / CSV / TXT
                       </button>
                     </div>
                     
@@ -4663,7 +4747,7 @@ export default function App() {
                       style={{ width: '100%', padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: '6px', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.85rem' }}
                     />
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      💡 Supports Comma (,) or Tab separated values. Copy-paste directly from Excel/Google Sheets or upload a .CSV/.TXT file.
+                      💡 Supports Comma (,) or Tab separated values. Copy-paste directly from Excel/Google Sheets or upload a .CSV, .TXT, or Excel (.XLSX/.XLS) file.
                     </p>
                   </div>
                 )}
