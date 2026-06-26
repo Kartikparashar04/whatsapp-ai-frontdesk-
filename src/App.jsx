@@ -598,6 +598,7 @@ export default function App() {
   const [kbFaqs, setKbFaqs] = useState([]);
   const [newFaqQuestion, setNewFaqQuestion] = useState('');
   const [newFaqAnswer, setNewFaqAnswer] = useState('');
+  const [faqSearchQuery, setFaqSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   
   const [staffList, setStaffList] = useState([]);
@@ -6578,35 +6579,58 @@ Your main tasks are:
                 <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>Add FAQ</button>
               </form>
 
+              {/* FAQ Search Bar */}
+              <div style={{ marginBottom: '20px', maxWidth: '400px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '8px 12px', gap: '8px' }}>
+                  <Search size={16} style={{ color: 'var(--text-muted)' }} />
+                  <input 
+                    type="text" 
+                    placeholder="Search FAQs by question or answer..." 
+                    value={faqSearchQuery}
+                    onChange={e => setFaqSearchQuery(e.target.value)}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.85rem', color: 'black' }}
+                  />
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 {kbFaqs.length === 0 ? (
                   <p style={{ gridColumn: 'span 2', fontSize: '0.8rem', color: 'var(--text-muted)' }}>No FAQs configured.</p>
                 ) : (
-                  kbFaqs.map(faq => (
-                    <div key={faq.id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
-                      <div>
-                        <p style={{ fontWeight: '700', fontSize: '0.8rem', margin: '0 0 4px 0' }}>Q: {faq.question}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>A: {faq.answer}</p>
-                      </div>
-                      <button 
-                        onClick={async () => {
-                          try {
-                            const res = await authenticatedFetch(`${BACKEND_URL}/v1/faqs/${faq.id}`, { method: 'DELETE' });
-                            if (res.ok) {
-                              triggerToast("FAQ deleted.", "green");
-                              fetchKnowledgeBase();
+                  (() => {
+                    const filtered = kbFaqs.filter(faq => 
+                      (faq.question || '').toLowerCase().includes(faqSearchQuery.toLowerCase()) || 
+                      (faq.answer || '').toLowerCase().includes(faqSearchQuery.toLowerCase())
+                    );
+                    if (filtered.length === 0) {
+                      return <p style={{ gridColumn: 'span 2', fontSize: '0.8rem', color: 'var(--text-muted)' }}>No matching FAQs found.</p>;
+                    }
+                    return filtered.map(faq => (
+                      <div key={faq.id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
+                        <div>
+                          <p style={{ fontWeight: '700', fontSize: '0.8rem', margin: '0 0 4px 0' }}>Q: {faq.question}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>A: {faq.answer}</p>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            try {
+                              const res = await authenticatedFetch(`${BACKEND_URL}/v1/faqs/${faq.id}`, { method: 'DELETE' });
+                              if (res.ok) {
+                                triggerToast("FAQ deleted.", "green");
+                                fetchKnowledgeBase();
+                              }
+                            } catch (err) {
+                              console.error(err);
                             }
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        }}
-                        className="btn-secondary" 
-                        style={{ alignSelf: 'flex-start', padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)', cursor: 'pointer' }}
-                      >
-                        Delete FAQ
-                      </button>
-                    </div>
-                  ))
+                          }}
+                          className="btn-secondary" 
+                          style={{ alignSelf: 'flex-start', padding: '4px 8px', fontSize: '0.7rem', color: 'var(--accent-red)', borderColor: 'var(--accent-red)', cursor: 'pointer' }}
+                        >
+                          Delete FAQ
+                        </button>
+                      </div>
+                    ));
+                  })()
                 )}
               </div>
             </div>

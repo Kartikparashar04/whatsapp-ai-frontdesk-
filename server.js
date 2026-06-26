@@ -22,6 +22,47 @@ const mammoth = require('mammoth');
 // Load environment variables
 dotenv.config();
 
+// Hashed 256-bit encryption key to ensure exact 32-byte length for AES-256
+const ENCRYPTION_KEY = crypto.createHash('sha256')
+  .update(process.env.ENCRYPTION_KEY || 'frontdeskai_secure_token_secret_key_99_custom_encryption_salt_2026')
+  .digest();
+const IV_LENGTH = 16;
+
+function encryptToken(text) {
+  if (!text) return '';
+  try {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+    let encrypted = cipher.update(text);
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+    return iv.toString('hex') + ':' + encrypted.toString('hex');
+  } catch (err) {
+    console.error('Encryption error:', err.message);
+    return text;
+  }
+}
+
+function decryptToken(text) {
+  if (!text) return '';
+  try {
+    const textParts = text.split(':');
+    if (textParts.length !== 2) {
+      // Fallback for legacy plain-text tokens in database
+      return text;
+    }
+    const iv = Buffer.from(textParts.shift(), 'hex');
+    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (err) {
+    console.error('Decryption error:', err.message);
+    return text;
+  }
+}
+
+
 // In-memory logs for remote diagnostics
 const debugLogs = [];
 const originalLog = console.log;
@@ -62,7 +103,22 @@ admin.initializeApp({
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // Enable Cross-Origin Resource Sharing for frontend dashboard
+const allowedOrigins = [
+  'https://app.frontdeskai.shop',
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+    return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+  },
+  credentials: true
+}));
 
 // Request logging middleware for diagnostics
 app.use((req, res, next) => {
@@ -473,6 +529,9 @@ async function getProfileByEmail(email) {
         row.subscription_start = now;
       }
       row.whatsappConfig = row.whatsapp_config ? JSON.parse(row.whatsapp_config) : {};
+      if (row.whatsappConfig.accessToken) {
+        row.whatsappConfig.accessToken = decryptToken(row.whatsappConfig.accessToken);
+      }
       row.isOnboarded = row.is_onboarded === 1;
       row.isSubscribed = row.is_subscribed === 1;
       row.avatarImg = row.avatar_img;
@@ -506,6 +565,9 @@ async function getProfileByPhoneId(phoneId) {
     const row = await db.get('SELECT * FROM business_profiles WHERE phone_number_id = ?', phoneId);
     if (row) {
       row.whatsappConfig = row.whatsapp_config ? JSON.parse(row.whatsapp_config) : {};
+      if (row.whatsappConfig.accessToken) {
+        row.whatsappConfig.accessToken = decryptToken(row.whatsappConfig.accessToken);
+      }
       row.isOnboarded = row.is_onboarded === 1;
       row.avatarImg = row.avatar_img;
       row.businessName = row.business_name;
@@ -585,6 +647,9 @@ app.get('/v1/webhooks', (req, res) => {
   }
 });
 
+// Webhook Deduplication Cache to prevent Meta retry loops
+const processedMessageIds = new Set();
+
 /**
  * 2. Webhook Event Handler (Triggered when a customer sends a message)
  */
@@ -600,6 +665,19 @@ app.post('/v1/webhooks', async (req, res) => {
       const message = value?.messages?.[0];
 
       if (message && message.type === 'text') {
+        const messageId = message.id;
+        
+        // Deduplicate message ID
+        if (processedMessageIds.has(messageId)) {
+          console.log(`[Webhook] Duplicate message ID ${messageId} ignored.`);
+          return res.status(200).send('EVENT_RECEIVED');
+        }
+        processedMessageIds.add(messageId);
+        if (processedMessageIds.size > 1000) {
+          const firstVal = processedMessageIds.values().next().value;
+          processedMessageIds.delete(firstVal);
+        }
+
         const customerPhone = message.from; // Customer's phone number
         const customerName = value.contacts?.[0]?.profile?.name || 'Customer';
         const userText = message.text.body;
@@ -625,8 +703,10 @@ app.post('/v1/webhooks', async (req, res) => {
             console.error('Error running combined AI message processor:', err.message);
           });
         } else {
-          console.warn('Gemini client not initialized, sending fallback placeholder reply.');
-          await sendWhatsAppMessage(customerPhone, "Thank you for your message! Our AI assistant is configuring. How can we help you?", activeProfile);
+          console.warn('Gemini client not initialized, sending fallback placeholder reply asynchronously.');
+          sendWhatsAppMessage(customerPhone, "Thank you for your message! Our AI assistant is configuring. How can we help you?", activeProfile).catch(err => {
+            console.error('Error sending fallback reply:', err.message);
+          });
         }
       }
       return res.status(200).send('EVENT_RECEIVED');
@@ -652,7 +732,11 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
       return res.status(500).json({ success: false, error: 'Database is not initialized.' });
     }
 
-    const whatsappConfigStr = JSON.stringify(profileData.whatsappConfig || {});
+    const configCopy = { ...(profileData.whatsappConfig || {}) };
+    if (configCopy.accessToken) {
+      configCopy.accessToken = encryptToken(configCopy.accessToken);
+    }
+    const whatsappConfigStr = JSON.stringify(configCopy);
     const is_onboarded = profileData.isOnboarded ? 1 : 0;
     const is_subscribed = profileData.isSubscribed ? 1 : 0;
 
@@ -2006,7 +2090,10 @@ async function logMessageToConversation(emailKey, customerPhone, customerName, s
   }
 }
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // limit file size to 5MB
+});
 
 app.post('/v1/knowledge-base/upload', checkAuth, upload.single('file'), async (req, res) => {
   try {
@@ -2301,6 +2388,15 @@ app.get('*all', (req, res, next) => {
     return next();
   }
   res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+});
+
+// Global error handler middleware (handles Multer file size errors gracefully)
+app.use((err, req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ success: false, error: 'File is too large. Maximum size allowed is 5MB.' });
+  }
+  console.error('[Global Error Handler]:', err.message);
+  res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
 });
 
 app.listen(PORT, () => {
