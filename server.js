@@ -1711,12 +1711,13 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
   
   const phoneId = profile?.phoneNumberId || profile?.whatsappConfig?.phoneNumberId || PHONE_NUMBER_ID;
 
+  const cleanPhone = toPhone.replace(/\D/g, '');
   const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
   
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: toPhone,
+    to: cleanPhone,
     type: "text",
     text: {
       preview_url: false,
@@ -1725,7 +1726,7 @@ async function sendWhatsAppMessage(toPhone, textBody, profile = null) {
   };
 
   try {
-    console.log(`Sending message to ${toPhone} using Phone ID ${phoneId}...`);
+    console.log(`Sending message to ${cleanPhone} using Phone ID ${phoneId}...`);
     const response = await axios.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${token}`,
