@@ -2473,6 +2473,7 @@ export default function App() {
   // Action: Manual Follow Up
   const handleFollowUpLead = async (leadId) => {
     const lead = leads.find(l => l.id === leadId);
+    alert(`DEBUG: Clicked Follow-up\nLead Found: ${lead ? 'Yes' : 'No'}\nName: ${lead ? lead.name : 'N/A'}\nPhone: ${lead ? lead.phone : 'N/A'}\nTarget URL: ${BACKEND_URL}/v1/campaigns/send-single`);
     if (!lead) return;
 
     const followUpText = `Hi ${lead.name}, still looking to schedule your session for ${lead.requirement}? Let me know if you would like to book a slot.`;
