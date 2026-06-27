@@ -951,6 +951,25 @@ export default function App() {
           setUser(fullProfile);
           localStorage.setItem('frontdesk_user', JSON.stringify(fullProfile));
           
+          // Sync database settings into nicheConfigs and local storage
+          const targetNiche = profileData.niche || 'dental';
+          if (profileData.businessName || profileData.systemPrompt) {
+            setNicheConfigs(prev => {
+              const updated = {
+                ...prev,
+                [targetNiche]: {
+                  ...prev[targetNiche],
+                  businessName: profileData.businessName || prev[targetNiche].businessName,
+                  systemPrompt: profileData.systemPrompt || prev[targetNiche].systemPrompt,
+                  greetingMessage: profileData.greetingMessage || prev[targetNiche].greetingMessage,
+                  reviewUrl: profileData.reviewUrl || prev[targetNiche].reviewUrl
+                }
+              };
+              localStorage.setItem(`frontdesk_configs_${emailKey}`, JSON.stringify(updated));
+              return updated;
+            });
+          }
+          
           // Save to profiles list
           profiles[emailKey] = fullProfile;
           localStorage.setItem('frontdesk_user_profiles', JSON.stringify(profiles));
