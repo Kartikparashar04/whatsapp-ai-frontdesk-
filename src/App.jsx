@@ -4931,7 +4931,7 @@ export default function App() {
                   AI Agent Instructions
                 </h3>
 
-                <form key={`${activeNiche}_${currentConfig.businessName}_${currentConfig.reviewUrl}`} onSubmit={handleSaveConfig}>
+                <form key={`${activeNiche}_${currentConfig.businessName}_${currentConfig.reviewUrl}_${currentConfig.greetingMessage?.substring(0, 10)}_${currentConfig.systemPrompt?.substring(0, 10)}`} onSubmit={handleSaveConfig}>
                   <div className="form-group">
                     <label>Business Public Name</label>
                     <input 
@@ -5673,7 +5673,7 @@ export default function App() {
                   <Settings size={18} style={{ color: 'var(--accent-purple)' }} />
                   Business & Profile Settings
                 </h3>
-                 <form key={user ? `${user.email}_${user.businessName || ''}_${user.name || ''}` : 'profile-form'} onSubmit={(e) => {
+                  <form key={user ? `${user.email}_${user.businessName || ''}_${user.name || ''}_${user.businessWebsite || ''}_${user.businessAddress || ''}_${user.businessPhone || ''}_${user.aiPersona || ''}_${user.googleApiKey || ''}_${user.googlePlaceId || ''}` : 'profile-form'} onSubmit={(e) => {
                   e.preventDefault();
                   const form = e.target;
                   
@@ -6337,7 +6337,20 @@ Your main tasks are:
                       const formData = new FormData();
                       formData.append('file', file);
                       try {
-                        const token = localStorage.getItem('frontdesk_token') || 'kartikparashar15@gmail.com';
+                        let token = 'kartikparashar15@gmail.com';
+                        if (user && user.role === 'admin') {
+                          token = user.email;
+                        } else if (auth.currentUser) {
+                          try {
+                            token = await auth.currentUser.getIdToken(true);
+                          } catch (tErr) {
+                            console.error("Error getting idToken:", tErr);
+                            token = user ? user.email : 'kartikparashar15@gmail.com';
+                          }
+                        } else if (user) {
+                          token = user.email;
+                        }
+
                         const res = await fetch(`${BACKEND_URL}/v1/knowledge-base/upload`, {
                           method: 'POST',
                           headers: { 'Authorization': `Bearer ${token}` },
