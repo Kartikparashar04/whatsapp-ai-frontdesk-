@@ -114,7 +114,10 @@ app.use(express.json({
 const rateLimitMap = new Map();
 function createRateLimiter(limit, windowMs) {
   return (req, res, next) => {
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    let ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.ip || req.socket.remoteAddress;
+    if (ip && typeof ip === 'string' && ip.includes(',')) {
+      ip = ip.split(',')[0].trim();
+    }
     const now = Date.now();
     if (!rateLimitMap.has(ip)) {
       rateLimitMap.set(ip, []);
