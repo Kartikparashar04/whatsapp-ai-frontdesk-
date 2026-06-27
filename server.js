@@ -118,6 +118,10 @@ function createRateLimiter(limit, windowMs) {
     if (ip && typeof ip === 'string' && ip.includes(',')) {
       ip = ip.split(',')[0].trim();
     }
+    // Bypass rate limiting for localhost/loopback proxy IPs
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+      return next();
+    }
     const now = Date.now();
     if (!rateLimitMap.has(ip)) {
       rateLimitMap.set(ip, []);
