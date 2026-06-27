@@ -60,7 +60,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  sendEmailVerification
+  sendEmailVerification,
+  onAuthStateChanged
 } from 'firebase/auth';
 
 // Firebase Client Configuration
@@ -594,15 +595,23 @@ export default function App() {
     }(document, 'script', 'facebook-jssdk'));
   }, []);
 
-  // Fetch fresh profile state on mount to sync subscription status
+  // Fetch fresh profile state on mount to sync subscription status after Firebase Auth is fully initialized
   useEffect(() => {
-    if (user) {
-      if (auth.currentUser && user.role !== 'admin') {
-        resolveUserProfileAndSetSession(auth.currentUser);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        resolveUserProfileAndSetSession(firebaseUser);
       } else {
-        resolveUserProfileAndSetSession(user);
+        // If not a Firebase user, check if we have a locally stored admin user
+        const localUser = localStorage.getItem('frontdesk_user');
+        if (localUser) {
+          const parsedUser = JSON.parse(localUser);
+          if (parsedUser.role === 'admin' || parsedUser.email === 'kartikparashar15@gmail.com') {
+            resolveUserProfileAndSetSession(parsedUser);
+          }
+        }
       }
-    }
+    });
+    return () => unsubscribe();
   }, []);
 
   // LocalStorage Synchronizers (scoped by user email, with safety guards)
