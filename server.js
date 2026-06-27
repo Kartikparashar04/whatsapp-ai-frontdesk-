@@ -993,6 +993,7 @@ app.post('/v1/business-profile', checkAuth, async (req, res) => {
     console.log(`Successfully synced business profile for email ${emailKey}`);
     return res.status(200).json({ success: true, message: 'Business profile synced in SQL successfully!' });
   } catch (err) {
+    console.error('Error updating business profile:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
