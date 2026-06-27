@@ -4912,7 +4912,7 @@ export default function App() {
                   AI Agent Instructions
                 </h3>
 
-                <form onSubmit={handleSaveConfig}>
+                <form key={`${activeNiche}_${currentConfig.businessName}_${currentConfig.reviewUrl}`} onSubmit={handleSaveConfig}>
                   <div className="form-group">
                     <label>Business Public Name</label>
                     <input 
@@ -5654,7 +5654,7 @@ export default function App() {
                   <Settings size={18} style={{ color: 'var(--accent-purple)' }} />
                   Business & Profile Settings
                 </h3>
-                 <form onSubmit={(e) => {
+                 <form key={user ? `${user.email}_${user.businessName || ''}_${user.name || ''}` : 'profile-form'} onSubmit={(e) => {
                   e.preventDefault();
                   const form = e.target;
                   
