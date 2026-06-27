@@ -222,16 +222,10 @@ export default function App() {
 
   const [googleStats, setGoogleStats] = useState({ rating: 4.8, totalReviews: 128, reviews: [], isMock: true });
 
-  const [nicheConfigs, setNicheConfigs] = useState(() => {
-    const local = localStorage.getItem('frontdesk_configs');
-    return local ? JSON.parse(local) : NICHE_CONFIGS;
-  });
+  const [nicheConfigs, setNicheConfigs] = useState(NICHE_CONFIGS);
 
   // WhatsApp Business API Config State
-  const [whatsappConfig, setWhatsappConfig] = useState(() => {
-    const local = localStorage.getItem('frontdesk_wa_config');
-    return local ? JSON.parse(local) : { accessToken: '', phoneNumberId: '', accountId: '', isConnected: false };
-  });
+  const [whatsappConfig, setWhatsappConfig] = useState({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
 
   // Modals Visibility
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -1676,6 +1670,9 @@ export default function App() {
     setPhoneNumber('');
     setOtpCode('');
     setConfirmationResult(null);
+    setNicheConfigs(NICHE_CONFIGS);
+    setWhatsappConfig({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
+    localStorage.removeItem('frontdesk_user');
     triggerToast("Logged out successfully.");
   };
 
@@ -5748,7 +5745,7 @@ Your main tasks are:
                       }
                     };
                     setNicheConfigs(updatedConfigs);
-                    localStorage.setItem('frontdesk_configs', JSON.stringify(updatedConfigs));
+                    localStorage.setItem(`frontdesk_configs_${user.email.toLowerCase()}`, JSON.stringify(updatedConfigs));
                   }
 
                   triggerToast("Profile and business details updated!", "green");
