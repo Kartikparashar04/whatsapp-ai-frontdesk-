@@ -1893,23 +1893,78 @@ app.post('/v1/test-agent-reply', checkAuth, sensitiveRateLimiter, async (req, re
       }
     }
 
+    // Retrieve caller's existing appointments from DB (filtered privately by phone)
+    let callerAppointments = [];
+    if (db) {
+      try {
+        const allAppts = await db.all('SELECT id, name, phone, service, date_time, status FROM appointments WHERE owner_email = ?', emailKey);
+        const cleanCustomerPhone = targetPhone.replace(/\D/g, '');
+        callerAppointments = allAppts.filter(appt => {
+          const cleanApptPhone = appt.phone.replace(/\D/g, '');
+          return cleanApptPhone.endsWith(cleanCustomerPhone) || cleanCustomerPhone.endsWith(cleanApptPhone);
+        });
+      } catch (err) {
+        console.error('[AI Simulator Engine] Error fetching caller appointments:', err.message);
+      }
+    }
+
+    let appointmentsContext = "Caller has no existing appointments.";
+    if (callerAppointments.length > 0) {
+      appointmentsContext = `Current caller's existing appointments (strictly private, only for this phone number):\n` +
+        callerAppointments.map(appt => `- Appointment ID: "${appt.id}", Service: "${appt.service}", Date/Time: "${appt.date_time}", Status: "${appt.status}"`).join('\n');
+    }
+
+    // Retrieve recent chat history context to prevent the bot from forgetting what was discussed
+    let historyContext = "";
+    if (db) {
+      try {
+        const messages = await db.all(`
+          SELECT sender, message_text 
+          FROM messages 
+          WHERE conversation_id = (
+            SELECT id FROM conversations WHERE customer_phone = ? AND owner_email = ?
+          )
+          ORDER BY timestamp DESC
+          LIMIT 10
+        `, targetPhone, emailKey);
+        
+        if (messages && messages.length > 0) {
+          messages.reverse();
+          historyContext = "Recent chat history (ordered from oldest to newest):\n" +
+            messages.map(msg => `${msg.sender === 'customer' ? 'Client' : 'AI Receptionist'}: "${msg.message_text}"`).join('\n');
+        }
+      } catch (err) {
+        console.error('[AI Simulator Engine] Error fetching chat history:', err.message);
+      }
+    }
+
     const groundingText = await getGroundingContext(emailKey, message);
     const today = new Date();
     const categoryLabel = activeProfile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
+
+    const systemPromptText = activeProfile.system_prompt || `You are the primary AI Front Desk agent for "${activeProfile.businessName}", a premium ${categoryLabel} located at "${activeProfile.businessAddress}".
+Business contact: Phone: ${activeProfile.businessPhone}, Website: ${activeProfile.businessWebsite}.
+Your personality: ${activeProfile.aiPersona} (always polite, helpful, and concise).
+Your main tasks are:
+1. Capture client full name, WhatsApp number, requested service, and location.
+2. Confirm slots and schedule appointments.
+3. Share the Google Review link: ${activeProfile.review_url || ''} to invite feedback.`;
 
     const combinedPrompt = `You are a front desk database parser and conversational agent.
 Analyze this WhatsApp client query: "${message}"
 From sender: Name: "${targetName}", Phone: "${targetPhone}".
 Current date is: ${today.toDateString()} (Day: ${today.toLocaleDateString('en-US', { weekday: 'long' })}).
 
-You are the AI Front Desk for "${activeProfile.businessName}", a premium ${categoryLabel} located at "${activeProfile.businessAddress}".
-Business contact: Phone: ${activeProfile.businessPhone}, Website: ${activeProfile.businessWebsite}.
-Your personality: ${activeProfile.aiPersona} (always polite, helpful, and concise).
+${systemPromptText}
 
 ${groundingText}
 
+${appointmentsContext}
+
+${historyContext}
+
 Tasks:
-1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
+1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message, keeping the conversation history context in mind.
 2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
 3. If the client asks to speak to a human/staff/manager, or if you cannot answer their query from the provided instructions/niche, set "isHandoff" to true.
 
