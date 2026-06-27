@@ -1,0 +1,69 @@
+=========================================
+FRONTDESK AI - OFFICIAL KNOWLEDGE BASE
+=========================================
+
+1. ABOUT FRONTDESK AI
+-----------------------------------------
+FrontDesk AI is an all-in-one SaaS platform that helps local businesses (like dental clinics, salons, gyms, and retail shops) automate their customer operations on WhatsApp. By connecting the WhatsApp Business API, FrontDesk AI deploys a 24/7 intelligent AI receptionist that books appointments, captures leads, answers FAQs, broadcasts marketing messages, and requests Google reviews.
+
+2. CORE FEATURES & FUNCTIONALITIES
+-----------------------------------------
+* 24/7 AI Receptionist (Chatbot): Handles customer messages instantly, answers questions about services, prices, locations, and timings.
+* Lead Capture & Management: Automatically identifies and extracts potential customer requirements, budget, location, and phone numbers from conversations, saving them in the Lead Manager tab.
+* Smart Appointment Booking: Guides customers through booking procedures, matches their dates/times, checks availability, and registers appointments in the calendar.
+* Bulk Marketing Broadcasts: Allows businesses to upload Excel (.xlsx/.xls) or CSV lists, type a template message, and instantly launch a mass campaign to hundreds of contacts.
+* Google Review Request Automation: Automatically sends custom feedback review links (e.g., g.page short links) to customers after their appointments to boost Google Maps ratings.
+* Human Handoff (Live Chat): Staff can monitor chat sessions in real-time and take control over the AI agent when a complex query or human touch is needed.
+* Grounding Knowledge Base: Businesses can upload PDF, TXT, or Word DOCX documents. The AI agent reads these files to answer specific questions using company-specific data.
+
+3. SUBSCRIPTION & PRICING PLANS
+-----------------------------------------
+FrontDesk AI offers two simple subscription plans:
+* Starter Plan (₹2 / month):
+  - Ideal for testing and very small shops.
+  - Up to 100 AI auto-replies per month.
+  - Basic lead manager.
+  - Manual appointment scheduling.
+* Pro Plan (₹2,499 / month):
+  - Designed for growing businesses.
+  - Unlimited AI-powered auto-replies.
+  - Full bulk marketing campaign engine (with Excel/CSV file upload support).
+  - Multi-file Grounding Knowledge Base upload.
+  - Staff user accounts and permissions.
+  - 24/7 priority support.
+
+4. STEP-BY-STEP SETUP INSTRUCTIONS
+-----------------------------------------
+Step 1: Account Creation & Login
+- Open https://frontdeskai.shop and sign in. Admin accesses the console via SaaS Administrator Login.
+
+Step 2: WhatsApp API Connection
+- Go to "Automation Hub" -> "WhatsApp Business API Integration".
+- Input your Meta Developer Access Token, Phone Number ID, and WhatsApp Business Account ID.
+- Copy the Webhook Callback URL shown on the screen (e.g., https://app.frontdeskai.shop/v1/webhooks).
+- Paste it into your Meta Developer Dashboard Webhook settings, and use the Verification Token: deskflow_verify_token_secure_99.
+
+Step 3: AI Agent Persona Configuration
+- Under "AI Agent Instructions", set your Business Public Name (e.g., "FrontDesk AI").
+- Customize the Welcome Greeting Message (e.g., "Hello! Welcome to FrontDesk AI support. How can I help you today?").
+- Configure the System Prompt to guide the AI's tone (e.g., Friendly, Professional, Concise).
+- Add your Google Review Link (supports short URLs like https://g.page/r/... for quick access).
+
+Step 4: Uploading Grounding Knowledge
+- Go to the "AI Knowledge Base" tab.
+- Click "Browse Local Files" or drag & drop your business documents (PDF, TXT, DOCX).
+- Click upload. The AI agent will now use this document to answer queries accurately.
+
+5. FREQUENTLY ASKED QUESTIONS (FAQs)
+-----------------------------------------
+Q: What niches does FrontDesk AI support?
+A: Out-of-the-box it has tailored settings for Dental Clinics and Beauty Salons, but you can configure a custom niche for any local business (restaurants, real estate, gyms, etc.) using the Custom System Prompt.
+
+Q: How does the AI know my pricing and services?
+A: You can define your services directly in the Profile page, or write them out in a TXT/PDF document and upload it to the "AI Knowledge Base" tab. The AI will read the file and answer pricing queries accordingly.
+
+Q: Can my staff intervene during a chat?
+A: Yes, go to "Live Chat & Handoff" in the sidebar. You can view all active customer sessions, toggle the "AI Agent Active" switch to OFF, and chat manually with the customer.
+
+Q: How do I upload contact numbers for marketing broadcasts?
+A: In "Marketing Broadcast", upload a standard Excel file (.xlsx) or CSV containing "Name" and "Phone" columns. The system automatically extracts the details and schedules the campaign.
