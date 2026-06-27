@@ -297,7 +297,7 @@ export default function App() {
   const [placeMatches, setPlaceMatches] = useState([]);
   const [placeDropdownOpen, setPlaceDropdownOpen] = useState(false);
 
-  const [showSimDebug, setShowSimDebug] = useState(true);
+  const [showSimDebug, setShowSimDebug] = useState(false);
   const [simDebugLogs, setSimDebugLogs] = useState([
     {
       timestamp: new Date().toLocaleTimeString(),
