@@ -5060,12 +5060,13 @@ export default function App() {
                         <div style={{ flexGrow: 1, height: '1px', background: 'var(--border-light)' }}></div>
                       </div>
 
-                      <form onSubmit={handleSaveWhatsAppConfig} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <form key={`${whatsappConfig.accessToken?.substring(0, 10) || ''}_${whatsappConfig.phoneNumberId || ''}_${whatsappConfig.accountId || ''}`} onSubmit={handleSaveWhatsAppConfig} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div className="form-group" style={{ margin: '0' }}>
                           <label style={{ fontSize: '0.75rem', marginBottom: '4px' }}>Meta Access Token</label>
                           <input 
                             name="accessToken" 
                             type="text" 
+                            defaultValue={whatsappConfig.accessToken || ''}
                             placeholder="Paste your Meta Access Token here (Temporary or System User)" 
                             required 
                             style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
@@ -5077,6 +5078,7 @@ export default function App() {
                           <input 
                             name="phoneNumberId" 
                             type="text" 
+                            defaultValue={whatsappConfig.phoneNumberId || ''}
                             placeholder="e.g. 1168815362979106" 
                             required 
                             style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
@@ -5088,6 +5090,7 @@ export default function App() {
                           <input 
                             name="accountId" 
                             type="text" 
+                            defaultValue={whatsappConfig.accountId || ''}
                             placeholder="e.g. 238128912389104" 
                             required 
                             style={{ background: 'white', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '10px', fontSize: '0.8rem' }}
