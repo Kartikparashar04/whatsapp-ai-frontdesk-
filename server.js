@@ -293,7 +293,7 @@ app.get('/v1/debug-db-profiles', async (req, res) => {
   }
   try {
     if (!db) return res.status(500).send('Database not initialized');
-    const rows = await db.all('SELECT email, role, phone_number_id, whatsapp_config FROM business_profiles');
+    const rows = await db.all('SELECT * FROM business_profiles');
     return res.status(200).json(rows);
   } catch (err) {
     return res.status(500).send(err.message);
