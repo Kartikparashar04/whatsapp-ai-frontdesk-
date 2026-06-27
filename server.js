@@ -2089,6 +2089,30 @@ async function processIncomingMessage(userMessage, customerPhone, customerName, 
         callerAppointments.map(appt => `- Appointment ID: "${appt.id}", Service: "${appt.service}", Date/Time: "${appt.date_time}", Status: "${appt.status}"`).join('\n');
     }
 
+    // Retrieve recent chat history context to prevent the bot from forgetting what was discussed
+    let historyContext = "";
+    if (db) {
+      try {
+        const messages = await db.all(`
+          SELECT sender, message_text 
+          FROM messages 
+          WHERE conversation_id = (
+            SELECT id FROM conversations WHERE customer_phone = ? AND owner_email = ?
+          )
+          ORDER BY timestamp DESC
+          LIMIT 10
+        `, customerPhone, ownerEmail);
+        
+        if (messages && messages.length > 0) {
+          messages.reverse();
+          historyContext = "Recent chat history (ordered from oldest to newest):\n" +
+            messages.map(msg => `${msg.sender === 'customer' ? 'Client' : 'AI Receptionist'}: "${msg.message_text}"`).join('\n');
+        }
+      } catch (err) {
+        console.error('[AI Engine] Error fetching chat history:', err.message);
+      }
+    }
+
     const groundingText = await getGroundingContext(ownerEmail, userMessage);
     const today = new Date();
     const categoryLabel = profile.niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa';
@@ -2114,8 +2138,10 @@ ${groundingText}
 
 ${appointmentsContext}
 
+${historyContext}
+
 Tasks:
-1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message or confirming their booking slot.
+1. Generate a friendly reply to the client (strictly under 3 sentences) addressing their message, keeping the conversation history context in mind.
 2. Determine if the customer is requesting to book an appointment or providing lead details. Extract structured booking information (Name, Service, computed ISO date-time string YYYY-MM-DDTHH:MM:SS assuming year is 2026, and brief notes).
 3. If the user is asking whether they have an appointment, read the caller's existing appointments listed above and reply accordingly. Do NOT show or disclose appointments of other users.
 4. If the user wants to cancel or delete their appointment, identify the correct Appointment ID from the list, set "isCancellation" to true, and "cancellationAppointmentId" to the selected ID. In your reply, politely confirm that the appointment is being cancelled.
