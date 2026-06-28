@@ -320,6 +320,67 @@ export default function App() {
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   const [campaignAudience, setCampaignAudience] = useState('all-leads');
   
+  const getCategoryDisplayName = (key) => {
+    switch (key) {
+      case 'dental': return 'Dental Clinic';
+      case 'salon': return 'Hair Salon & Spa';
+      case 'clinic': return 'Medical Clinic';
+      case 'gym': return 'Gym & Fitness Club';
+      case 'restaurant': return 'Restaurant & Cafe';
+      case 'coaching': return 'Coaching Institute';
+      default: return key.charAt(0).toUpperCase() + key.slice(1);
+    }
+  };
+
+  const getRegistrationNicheDetails = (email) => {
+    const nicheSelectEl = document.querySelector('select[name="nicheType"]');
+    const customNicheInputEl = document.querySelector('input[name="customNicheInput"]');
+    let rawNiche = nicheSelectEl?.value || signupNicheType || 'dental';
+    let finalNiche = rawNiche;
+    
+    if (rawNiche === 'custom') {
+      const customName = (customNicheInputEl?.value || customNicheName || '').trim();
+      if (customName) {
+        finalNiche = customName.toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+        if (!finalNiche) finalNiche = 'custom_business';
+        
+        // Dynamic custom niche initialization
+        const cleanDisplayName = customName;
+        const newNicheConfig = {
+          id: finalNiche,
+          businessName: cleanDisplayName,
+          logo: '💼',
+          colorTheme: 'var(--accent-blue)',
+          whatsappNumber: '+91 90000 00000',
+          agentName: `${cleanDisplayName} AI Assistant`,
+          greetingMessage: `Welcome to ${cleanDisplayName}! How can we help you today?`,
+          reviewUrl: `https://g.page/r/${finalNiche}/review`,
+          services: [
+            { name: 'Standard Consultation', duration: '30 mins', price: '₹500' },
+            { name: 'Premium Service', duration: '60 mins', price: '₹1,500' }
+          ],
+          systemPrompt: `You are the primary AI Front Desk agent for ${cleanDisplayName}, a premium ${finalNiche} business. Your job is to answer customer questions politely, collect contact info to build a lead profile, and book an appointment.`,
+          mockAnswers: {
+            prices: 'Our consultation starts at ₹500, and premium services are around ₹1,500.',
+            location: 'We are located centrally. Where are you heading from?',
+            timings: 'We are open Monday to Saturday, 9:00 AM to 8:00 PM.'
+          }
+        };
+
+        const localConfigs = localStorage.getItem(`frontdesk_configs_${email.toLowerCase()}`);
+        const currentConfigs = localConfigs ? JSON.parse(localConfigs) : { ...NICHE_CONFIGS };
+        
+        if (!currentConfigs[finalNiche]) {
+          currentConfigs[finalNiche] = newNicheConfig;
+          localStorage.setItem(`frontdesk_configs_${email.toLowerCase()}`, JSON.stringify(currentConfigs));
+        }
+      } else {
+        finalNiche = 'custom_business';
+      }
+    }
+    return finalNiche;
+  };
+
   const [authMode, setAuthMode] = useState(() => {
     if (typeof window !== 'undefined' && window.location.pathname === '/signup') return 'signup';
     return 'login'; // login, signup, admin_login, forgot_password
@@ -376,6 +437,8 @@ export default function App() {
   // Navigation & Niche Selection
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeNiche, setActiveNiche] = useState('dental');
+  const [signupNicheType, setSignupNicheType] = useState('dental');
+  const [customNicheName, setCustomNicheName] = useState('');
   
   // App States
   const [leads, setLeads] = useState(() => {
@@ -1205,14 +1268,35 @@ export default function App() {
           const targetNiche = profileData.niche || 'dental';
           if (profileData.businessName || profileData.systemPrompt) {
             setNicheConfigs(prev => {
+              const baseConfig = prev[targetNiche] || {
+                id: targetNiche,
+                businessName: profileData.businessName || targetNiche.charAt(0).toUpperCase() + targetNiche.slice(1),
+                logo: '💼',
+                colorTheme: 'var(--accent-blue)',
+                whatsappNumber: '+91 90000 00000',
+                agentName: `${profileData.businessName || targetNiche} AI Assistant`,
+                greetingMessage: profileData.greetingMessage || 'Welcome!',
+                reviewUrl: profileData.reviewUrl || `https://g.page/r/${targetNiche}/review`,
+                services: [
+                  { name: 'Standard Consultation', duration: '30 mins', price: '₹500' },
+                  { name: 'Premium Service', duration: '60 mins', price: '₹1,500' }
+                ],
+                systemPrompt: profileData.systemPrompt || `You are the primary AI Front Desk agent for this business.`,
+                mockAnswers: {
+                  prices: 'Our consultation starts at ₹500, and premium services are around ₹1,500.',
+                  location: 'We are located centrally. Where are you heading from?',
+                  timings: 'We are open Monday to Saturday, 9:00 AM to 8:00 PM.'
+                }
+              };
+
               const updated = {
                 ...prev,
                 [targetNiche]: {
-                  ...prev[targetNiche],
-                  businessName: profileData.businessName || prev[targetNiche].businessName,
-                  systemPrompt: profileData.systemPrompt || prev[targetNiche].systemPrompt,
-                  greetingMessage: profileData.greetingMessage || prev[targetNiche].greetingMessage,
-                  reviewUrl: profileData.reviewUrl || prev[targetNiche].reviewUrl
+                  ...baseConfig,
+                  businessName: profileData.businessName || baseConfig.businessName,
+                  systemPrompt: profileData.systemPrompt || baseConfig.systemPrompt,
+                  greetingMessage: profileData.greetingMessage || baseConfig.greetingMessage,
+                  reviewUrl: profileData.reviewUrl || baseConfig.reviewUrl
                 }
               };
               localStorage.setItem(`frontdesk_configs_${emailKey}`, JSON.stringify(updated));
@@ -1574,7 +1658,7 @@ export default function App() {
           phone: phoneNumber,
           avatar: name.substring(0, 1).toUpperCase(),
           role: 'owner',
-          niche: 'dental',
+          niche: getRegistrationNicheDetails(email),
           isOnboarded: false,
           businessName: '',
           businessPhone: phoneNumber,
@@ -1602,7 +1686,7 @@ export default function App() {
         phone: userPhone,
         avatar: name.substring(0, 1).toUpperCase(),
         role: 'owner',
-        niche: 'dental',
+        niche: getRegistrationNicheDetails(email),
         isOnboarded: false,
         businessName: '',
         businessPhone: userPhone,
@@ -1706,7 +1790,7 @@ export default function App() {
       const nameInputEl = document.querySelector('input[name="name"]');
       const nicheSelectEl = document.querySelector('select[name="nicheType"]');
       const name = nameInputEl?.value || 'User';
-      const selectedNiche = nicheSelectEl?.value || 'dental';
+      const selectedNiche = getRegistrationNicheDetails(email);
 
       const authUser = {
         name: name,
@@ -1748,7 +1832,7 @@ export default function App() {
           const nameInputEl = document.querySelector('input[name="name"]');
           const nicheSelectEl = document.querySelector('select[name="nicheType"]');
           const name = nameInputEl?.value || email.split('@')[0];
-          const selectedNiche = nicheSelectEl?.value || 'dental';
+          const selectedNiche = getRegistrationNicheDetails(email);
 
           const authUser = {
             name: name,
@@ -3573,13 +3657,37 @@ export default function App() {
                             <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <Settings size={14} /> Business Category
                             </label>
-                            <select name="nicheType" style={{ width: '100%' }}>
+                            <select 
+                              name="nicheType" 
+                              value={signupNicheType}
+                              onChange={(e) => setSignupNicheType(e.target.value)}
+                              style={{ width: '100%' }}
+                            >
                               {Object.keys(NICHE_CONFIGS).map(key => (
                                 <option key={key} value={key}>
-                                  {NICHE_CONFIGS[key].logo || '💼'} {NICHE_CONFIGS[key].businessName}
+                                  {NICHE_CONFIGS[key].logo || '💼'} {getCategoryDisplayName(key)}
                                 </option>
                               ))}
+                              <option value="custom">💼 Other (Custom Category)</option>
                             </select>
+                            
+                            {signupNicheType === 'custom' && (
+                              <div style={{ marginTop: '10px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-blue)' }}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                  <span>Specify Custom Category Name</span>
+                                </label>
+                                <input 
+                                  type="text" 
+                                  name="customNicheInput"
+                                  required 
+                                  placeholder="e.g. Real Estate, Grocery Store" 
+                                  value={customNicheName}
+                                  onChange={(e) => setCustomNicheName(e.target.value)}
+                                  style={{ marginTop: '4px', width: '100%' }}
+                                />
+                              </div>
+                            )}
                           </div>
                         </>
                       )}
@@ -3668,13 +3776,37 @@ export default function App() {
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Settings size={14} /> Business Category
                         </label>
-                        <select name="nicheType" style={{ width: '100%' }}>
+                        <select 
+                          name="nicheType" 
+                          value={signupNicheType}
+                          onChange={(e) => setSignupNicheType(e.target.value)}
+                          style={{ width: '100%' }}
+                        >
                           {Object.keys(NICHE_CONFIGS).map(key => (
                             <option key={key} value={key}>
-                              {NICHE_CONFIGS[key].logo || '💼'} {NICHE_CONFIGS[key].businessName}
+                              {NICHE_CONFIGS[key].logo || '💼'} {getCategoryDisplayName(key)}
                             </option>
                           ))}
+                          <option value="custom">💼 Other (Custom Category)</option>
                         </select>
+                        
+                        {signupNicheType === 'custom' && (
+                          <div style={{ marginTop: '10px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-blue)' }}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                              <span>Specify Custom Category Name</span>
+                            </label>
+                            <input 
+                              type="text" 
+                              name="customNicheInput"
+                              required 
+                              placeholder="e.g. Real Estate, Grocery Store" 
+                              value={customNicheName}
+                              onChange={(e) => setCustomNicheName(e.target.value)}
+                              style={{ marginTop: '4px', width: '100%' }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
