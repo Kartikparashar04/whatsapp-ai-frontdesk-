@@ -313,7 +313,42 @@ export default function App() {
     const local = localStorage.getItem('frontdesk_user');
     return local ? JSON.parse(local) : null;
   });
-  const [showAuth, setShowAuth] = useState(false);
+  const [showAuth, setShowAuth] = useState(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+    return path === '/login' || path === '/signup';
+  });
+
+  // Custom router logic for /login, /signup, / paths
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/login') {
+      setShowAuth(true);
+      setAuthMode('login');
+    } else if (path === '/signup') {
+      setShowAuth(true);
+      setAuthMode('signup');
+    } else if (path === '/') {
+      setShowAuth(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const path = window.location.pathname;
+      if (path === '/login') {
+        setShowAuth(true);
+        setAuthMode('login');
+      } else if (path === '/signup') {
+        setShowAuth(true);
+        setAuthMode('signup');
+      } else if (path === '/') {
+        setShowAuth(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   const [campaignAudience, setCampaignAudience] = useState('all-leads');
@@ -2908,8 +2943,8 @@ export default function App() {
 
               {/* CTA */}
               <div style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center" }}>
-                <button className="btn-outline-blue-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); }} style={{ padding:"8px 18px", fontSize:13 }}>Sign In</button>
-                <button className="btn-primary-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); }} style={{ padding:"9px 20px", fontSize:13 }}>Free Trial</button>
+                <button className="btn-outline-blue-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); window.history.pushState(null, '', '/login'); }} style={{ padding:"8px 18px", fontSize:13 }}>Sign In</button>
+                <button className="btn-primary-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); window.history.pushState(null, '', '/signup'); }} style={{ padding:"9px 20px", fontSize:13 }}>Free Trial</button>
               </div>
             </div>
           </nav>
@@ -2932,10 +2967,10 @@ export default function App() {
                   Customers ko instantly reply karo, appointments auto-book karo, Google reviews badhao — bina kisi staff ke. Sirf WhatsApp pe, 24/7.
                 </p>
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:36 }}>
-                  <button className="btn-primary-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); }} style={{ fontSize:15, padding:"14px 30px" }}>
+                  <button className="btn-primary-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); window.history.pushState(null, '', '/signup'); }} style={{ fontSize:15, padding:"14px 30px" }}>
                     🚀 Free Trial Shuru Karo
                   </button>
-                  <button className="btn-outline-blue-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); }}>
+                  <button className="btn-outline-blue-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); window.history.pushState(null, '', '/login'); }}>
                     Live Demo Dekho →
                   </button>
                 </div>
@@ -3042,7 +3077,7 @@ export default function App() {
                   </div>
                   <p style={{ fontSize:12, opacity:0.65, marginBottom:20 }}>{p.desc}</p>
 
-                  <button onClick={() => { setShowAuth(true); setAuthMode('signup'); }} style={{
+                  <button onClick={() => { setShowAuth(true); setAuthMode('signup'); window.history.pushState(null, '', '/signup'); }} style={{
                     width:"100%", borderRadius:50, padding:"12px",
                     fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
                     border: p.highlight ? "none" : `1.5px solid ${BLUE}`,
@@ -3102,10 +3137,10 @@ export default function App() {
               No credit card. No setup fee. Koi hidden charges nahi.
             </p>
             <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
-              <button className="btn-purple-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); }} style={{ fontSize:16, padding:"15px 36px" }}>
+              <button className="btn-purple-lp" onClick={() => { setShowAuth(true); setAuthMode('signup'); window.history.pushState(null, '', '/signup'); }} style={{ fontSize:16, padding:"15px 36px" }}>
                 🚀 Free Trial Shuru Karo
               </button>
-              <button onClick={() => { setShowAuth(true); setAuthMode('login'); }} style={{ background:"rgba(255,255,255,0.15)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.4)",
+              <button onClick={() => { setShowAuth(true); setAuthMode('login'); window.history.pushState(null, '', '/login'); }} style={{ background:"rgba(255,255,255,0.15)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.4)",
                 borderRadius:50, padding:"14px 28px", fontSize:15, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
                 📞 Demo Book Karo
               </button>
@@ -3129,7 +3164,7 @@ export default function App() {
           </footer>
 
           {/* Simulator FAB */}
-          <button className="btn-purple-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); }} style={{
+          <button className="btn-purple-lp" onClick={() => { setShowAuth(true); setAuthMode('login'); window.history.pushState(null, '', '/login'); }} style={{
             position:"fixed", bottom:20, right:20, zIndex:999,
             padding:"12px 20px", fontSize:13, borderRadius:50,
             display:"flex", alignItems:"center", gap:7,
@@ -3144,7 +3179,7 @@ export default function App() {
       <div className="auth-page-backdrop">
         <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 20 }}>
           <button 
-            onClick={() => setShowAuth(false)} 
+            onClick={() => { setShowAuth(false); window.history.pushState(null, '', '/'); }} 
             className="btn-secondary" 
             style={{ 
               background: '#1e293b', 
