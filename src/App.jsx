@@ -3145,7 +3145,20 @@ export default function App() {
           <button 
             onClick={() => setShowAuth(false)} 
             className="btn-secondary" 
-            style={{ background: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '6px 14px', fontSize: '0.75rem', cursor: 'pointer' }}
+            style={{ 
+              background: '#1e293b', 
+              color: '#ffffff', 
+              border: '1px solid #334155', 
+              borderRadius: '20px', 
+              padding: '8px 16px', 
+              fontSize: '0.8rem', 
+              fontWeight: '600', 
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#334155'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#1e293b'; }}
           >
             ← Back to Home
           </button>
