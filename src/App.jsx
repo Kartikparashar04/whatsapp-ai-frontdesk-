@@ -3574,8 +3574,11 @@ export default function App() {
                               <Settings size={14} /> Business Category
                             </label>
                             <select name="nicheType" style={{ width: '100%' }}>
-                              <option value="dental">🦷 Dental Clinic</option>
-                              <option value="salon">💇‍♀️ Hair Salon & Spa</option>
+                              {Object.keys(NICHE_CONFIGS).map(key => (
+                                <option key={key} value={key}>
+                                  {NICHE_CONFIGS[key].logo || '💼'} {NICHE_CONFIGS[key].businessName}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </>
@@ -3666,8 +3669,11 @@ export default function App() {
                           <Settings size={14} /> Business Category
                         </label>
                         <select name="nicheType" style={{ width: '100%' }}>
-                          <option value="dental">🦷 Dental Clinic</option>
-                          <option value="salon">💇‍♀️ Hair Salon & Spa</option>
+                          {Object.keys(NICHE_CONFIGS).map(key => (
+                            <option key={key} value={key}>
+                              {NICHE_CONFIGS[key].logo || '💼'} {NICHE_CONFIGS[key].businessName}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </>
