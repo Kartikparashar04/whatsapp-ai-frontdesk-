@@ -686,12 +686,25 @@ async function checkAuth(req, res, next) {
   }
 }
 
-// Initialize Google Gemini AI SDK
+// Initialize Google Gemini AI SDK (Supports both Vertex AI Enterprise and Google AI Studio)
 let aiClient = null;
-if (GEMINI_API_KEY) {
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   try {
+    console.log('[AI Engine] Initializing Vertex AI client...');
+    aiClient = new GoogleGenAI({
+      vertex: true,
+      project: process.env.GCP_PROJECT_ID || 'frontdeskai-4c8ea',
+      location: process.env.GCP_LOCATION || 'us-central1'
+    });
+    console.log('Gemini AI SDK (Vertex AI) initialized successfully!');
+  } catch (error) {
+    console.error('Error initializing Gemini AI SDK with Vertex AI:', error.message);
+  }
+} else if (GEMINI_API_KEY) {
+  try {
+    console.log('[AI Engine] Initializing Google AI Studio client...');
     aiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    console.log('Gemini AI SDK initialized successfully!');
+    console.log('Gemini AI SDK (AI Studio) initialized successfully!');
   } catch (error) {
     console.error('Error initializing Gemini AI SDK:', error.message);
   }
