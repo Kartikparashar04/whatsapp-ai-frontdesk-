@@ -3160,9 +3160,9 @@ export default function App() {
             </div>
             <p style={{ fontSize:12, marginBottom:14 }}>WhatsApp AI Front Desk for Local Businesses</p>
             <div style={{ display:"flex", gap:20, justifyContent:"center", marginBottom:16, flexWrap:"wrap" }}>
-              {["Privacy Policy","Terms of Service","Contact Us"].map(l => (
-                <a key={l} href="#" style={{ color:"rgba(255,255,255,0.4)", fontSize:12, textDecoration:"none" }}>{l}</a>
-              ))}
+              <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(255,255,255,0.4)", fontSize:12, textDecoration:"none" }}>Privacy Policy</a>
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(255,255,255,0.4)", fontSize:12, textDecoration:"none" }}>Terms of Service</a>
+              <a href="mailto:kartikparashar15@gmail.com" style={{ color:"rgba(255,255,255,0.4)", fontSize:12, textDecoration:"none" }}>Contact Us</a>
             </div>
             <p style={{ fontSize:11 }}>© 2026 FrontDesk AI. Made with ❤️ in India 🇮🇳</p>
           </footer>
