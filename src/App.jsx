@@ -227,7 +227,7 @@ const testimonials = [
 function ChatDemo() {
   const [visible, setVisible] = useState([]);
   const [typing, setTyping] = useState(false);
-  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     chatMsgs.forEach((msg, i) => {
@@ -242,7 +242,9 @@ function ChatDemo() {
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [visible, typing]);
 
   return (
@@ -265,7 +267,7 @@ function ChatDemo() {
       </div>
 
       {/* Messages */}
-      <div style={{ flex:1, padding:10, display:"flex", flexDirection:"column", gap:7, minHeight:300, maxHeight:340, overflowY:"auto" }}>
+      <div ref={containerRef} style={{ flex:1, padding:10, display:"flex", flexDirection:"column", gap:7, minHeight:300, maxHeight:340, overflowY:"auto" }}>
         <div style={{ background:"rgba(0,0,0,0.07)", borderRadius:8, padding:"3px 10px",
           fontSize:10, color:"#555", textAlign:"center", alignSelf:"center" }}>Today</div>
         {chatMsgs.map((msg, i) => visible.includes(i) ? (
@@ -292,7 +294,6 @@ function ChatDemo() {
             </div>
           </div>
         )}
-        <div ref={bottomRef}/>
       </div>
 
       {/* Input */}
