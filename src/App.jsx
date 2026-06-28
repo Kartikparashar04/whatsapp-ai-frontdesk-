@@ -1198,6 +1198,11 @@ export default function App() {
         const verifyData = await verifyResponse.json();
         if (verifyData.success) {
           triggerToast("Starter Plan activated for free! 🚀", "green");
+          setUser(prev => {
+            const updated = { ...prev, isSubscribed: true, subscriptionPlan: planType, isOnboarded: true };
+            localStorage.setItem('frontdesk_user', JSON.stringify(updated));
+            return updated;
+          });
           if (auth.currentUser) {
             resolveUserProfileAndSetSession(auth.currentUser);
           } else {
@@ -1263,6 +1268,11 @@ export default function App() {
             const verifyData = await verifyResponse.json();
             if (verifyData.success) {
               triggerToast(`Subscription activated successfully for ${planType.toUpperCase()} (Demo Mode)!`, "green");
+              setUser(prev => {
+                const updated = { ...prev, isSubscribed: true, subscriptionPlan: planType, isOnboarded: true };
+                localStorage.setItem('frontdesk_user', JSON.stringify(updated));
+                return updated;
+              });
               // Re-fetch user profile to update state
               if (auth.currentUser) {
                 resolveUserProfileAndSetSession(auth.currentUser);
@@ -1323,6 +1333,11 @@ export default function App() {
             const verifyData = await verifyResponse.json();
             if (verifyData.success) {
               triggerToast(`Subscription activated successfully for ${planType.toUpperCase()}!`, "green");
+              setUser(prev => {
+                const updated = { ...prev, isSubscribed: true, subscriptionPlan: planType, isOnboarded: true };
+                localStorage.setItem('frontdesk_user', JSON.stringify(updated));
+                return updated;
+              });
               // Re-fetch user profile to update state from SQLite database
               if (auth.currentUser) {
                 resolveUserProfileAndSetSession(auth.currentUser);
