@@ -201,5 +201,91 @@ export const NICHE_CONFIGS = {
       location: 'We are in HSR Layout, Sector 6, Bangalore. Right next to the Central Park. Where are you heading from?',
       timings: 'We are open all 7 days of the week, from 10:00 AM to 9:00 PM.'
     }
+  },
+  clinic: {
+    id: 'clinic',
+    businessName: 'CarePlus Medical Clinic',
+    logo: '🏥',
+    colorTheme: '#22c55e',
+    whatsappNumber: '+91 90999 88888',
+    agentName: 'CarePlus AI Triage',
+    greetingMessage: 'Hello and welcome to CarePlus Medical Clinic 🏥. I am your AI receptionist. I can help you schedule consultation slots, check consulting fees, or view doctor timings. How can I help you today?',
+    reviewUrl: 'https://g.page/r/careplus-medical-clinic/review',
+    services: [
+      { name: 'General Physician Consultation', duration: '20 mins', price: '₹500' },
+      { name: 'Pediatric Specialist Consultation', duration: '30 mins', price: '₹800' },
+      { name: 'Comprehensive Health Checkup', duration: '45 mins', price: '₹2,500' },
+      { name: 'Dermatology Consultation', duration: '30 mins', price: '₹1,000' }
+    ],
+    systemPrompt: 'You are an empathetic, professional AI medical assistant for CarePlus Clinic. Answer patient queries politely, capture patient names and reasons for consultation, and schedule doctor visits.',
+    mockAnswers: {
+      prices: 'General consultation is ₹500, specialist is ₹800, and full body health check is ₹2,500. Which doctor consultation are you looking to book?',
+      location: 'We are situated at MG Road Metro Station, Bangalore. Near Royal Plaza. What is your location?',
+      timings: 'Doctors consult Monday to Saturday from 8:00 AM to 1:00 PM, and 4:00 PM to 9:00 PM.'
+    }
+  },
+  gym: {
+    id: 'gym',
+    businessName: 'IronForce Fitness Club',
+    logo: '🏋️',
+    colorTheme: '#ef4444',
+    whatsappNumber: '+91 90888 77777',
+    agentName: 'IronForce FitBot',
+    greetingMessage: 'Hey! Welcome to IronForce Fitness Club 🏋️. Ready to crush your goals? I can guide you through our membership plans, personal trainer bookings, or schedule a free trial workout!',
+    reviewUrl: 'https://g.page/r/ironforce-fitness/review',
+    services: [
+      { name: 'Free Trial Workout Session', duration: '60 mins', price: '₹0' },
+      { name: 'Monthly General Membership', duration: '30 days', price: '₹2,000' },
+      { name: '1-on-1 Personal Trainer Consultation', duration: '45 mins', price: '₹1,500' },
+      { name: 'Yoga & Pilates Group Class', duration: '60 mins', price: '₹500' }
+    ],
+    systemPrompt: 'You are an energetic, motivating fitness AI assistant for IronForce Fitness Club. Encourage prospective members, list facilities, and book gym trial slots.',
+    mockAnswers: {
+      prices: 'Memberships start at ₹2,000/month. Group classes are ₹500 per session. Personal training is ₹1,500 per session. Would you like to schedule a free trial workout today?',
+      location: 'We are in Indiranagar, 80 Feet Road, Bangalore (opposite Gold Gym). Where are you located?',
+      timings: 'We are open 24/7. Staff and trainers are available from 6:00 AM to 10:00 PM every day.'
+    }
+  },
+  restaurant: {
+    id: 'restaurant',
+    businessName: 'The Royal Bistro Cafe',
+    logo: '🍽️',
+    colorTheme: '#eab308',
+    whatsappNumber: '+91 90777 66666',
+    agentName: 'Bistro Table Planner',
+    greetingMessage: 'Namaste! Welcome to The Royal Bistro Cafe 🍽️. Looking for a delicious meal or want to reserve a table? I can help you reserve tables, check today\'s special menu, or view bistro hours!',
+    reviewUrl: 'https://g.page/r/royal-bistro/review',
+    services: [
+      { name: 'Bistro Table Reservation (2-4 People)', duration: '90 mins', price: '₹0' },
+      { name: 'Private Event Dining Booking', duration: '180 mins', price: '₹5,000' },
+      { name: 'Chef Special Degustation Booking', duration: '120 mins', price: '₹2,500' }
+    ],
+    systemPrompt: 'You are a polite, helpful AI concierge for The Royal Bistro Cafe. Help guests book tables, describe menu categories, and answer dining timing questions.',
+    mockAnswers: {
+      prices: 'Table bookings are completely free of charge! Average cost for two is around ₹1,200. What slot shall I reserve for you?',
+      location: 'We are located at Lakefront Road, Bangalore. Opposite City Garden. Where are you joining us from?',
+      timings: 'We serve daily from 11:30 AM to 11:30 PM. Live music is performed on weekends.'
+    }
+  },
+  coaching: {
+    id: 'coaching',
+    businessName: 'Apex Academic Academy',
+    logo: '📚',
+    colorTheme: 'var(--accent-blue)',
+    whatsappNumber: '+91 90666 55555',
+    agentName: 'Apex Info Desk',
+    greetingMessage: 'Hello! Welcome to Apex Academic Academy 📚. We help students prepare for IIT-JEE, NEET, and Board Exams. I can help you register for counseling, query class batches, and check fee structures!',
+    reviewUrl: 'https://g.page/r/apex-academy/review',
+    services: [
+      { name: 'Career Counseling & Admission Assessment', duration: '45 mins', price: '₹0' },
+      { name: 'IIT-JEE/NEET Prep Batch Inquiry', duration: '30 mins', price: '₹0' },
+      { name: '1-on-1 Math/Science Expert Mentorship', duration: '60 mins', price: '₹1,000' }
+    ],
+    systemPrompt: 'You are a professional, helpful academic guide for Apex Academic Academy. Assist parents and students with batch options, schedules, admission inquiries, and counselor bookings.',
+    mockAnswers: {
+      prices: 'Our general career counseling is free. Regular batches start from ₹4,500/month. expert mentorship is ₹1,000/hr. Would you like to schedule a free counseling session?',
+      location: 'Our main learning center is in Jabalpur, Wright Town (near Civic Center). What is your hometown?',
+      timings: 'Academic office is open Monday to Saturday, 10:00 AM to 7:00 PM. Evening classes run till 8:30 PM.'
+    }
   }
 };

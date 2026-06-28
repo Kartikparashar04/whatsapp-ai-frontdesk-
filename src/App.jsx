@@ -398,6 +398,79 @@ export default function App() {
   const [googleStats, setGoogleStats] = useState({ rating: 4.8, totalReviews: 128, reviews: [], isMock: true });
 
   const [nicheConfigs, setNicheConfigs] = useState(NICHE_CONFIGS);
+  const [showAddNicheModal, setShowAddNicheModal] = useState(false);
+
+  const handleCreateNiche = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const nicheId = form.nicheId.value.trim().toLowerCase();
+    const businessName = form.businessName.value.trim();
+    const logo = form.logo.value.trim();
+    const colorTheme = form.colorTheme.value;
+    const greetingMessage = form.greetingMessage.value.trim();
+
+    if (nicheConfigs[nicheId]) {
+      alert("This business category ID already exists. Please choose a different category ID.");
+      return;
+    }
+
+    const newNicheConfig = {
+      id: nicheId,
+      businessName,
+      logo,
+      colorTheme,
+      whatsappNumber: (user && user.businessPhone) ? user.businessPhone : '+91 90000 00000',
+      agentName: `${businessName} AI Assistant`,
+      greetingMessage,
+      reviewUrl: `https://g.page/r/${nicheId}-business/review`,
+      services: [
+        { name: 'Standard Consultation', duration: '30 mins', price: '₹500' },
+        { name: 'Premium Service', duration: '60 mins', price: '₹1,500' }
+      ],
+      systemPrompt: `You are the primary AI Front Desk agent for ${businessName}, a premium ${nicheId} business. Your job is to answer customer questions politely, collect contact info (name, requirement, budget, location) to build a lead profile, help them select a service, and book an appointment.`,
+      mockAnswers: {
+        prices: 'Our consultation starts at ₹500, and premium services are around ₹1,500. What service are you interested in?',
+        location: 'We are located centrally in the city. Where are you heading from?',
+        timings: 'We are open from Monday to Saturday, 9:00 AM to 8:00 PM.'
+      }
+    };
+
+    const updatedConfigs = {
+      ...nicheConfigs,
+      [nicheId]: newNicheConfig
+    };
+
+    setNicheConfigs(updatedConfigs);
+    setActiveNiche(nicheId);
+    setShowAddNicheModal(false);
+
+    if (user && user.email) {
+      const emailKey = user.email.toLowerCase();
+      localStorage.setItem(`frontdesk_configs_${emailKey}`, JSON.stringify(updatedConfigs));
+    }
+
+    triggerToast(`Custom Niche "${businessName}" created! 🚀`, 'green');
+    addActivity(`Created custom niche category: ${businessName}`, 'success');
+  };
+
+  const deleteNiche = (nicheId) => {
+    if (nicheId === 'dental' || nicheId === 'salon') return;
+    
+    const updatedConfigs = { ...nicheConfigs };
+    delete updatedConfigs[nicheId];
+    
+    setNicheConfigs(updatedConfigs);
+    if (activeNiche === nicheId) {
+      setActiveNiche('dental');
+    }
+
+    if (user && user.email) {
+      const emailKey = user.email.toLowerCase();
+      localStorage.setItem(`frontdesk_configs_${emailKey}`, JSON.stringify(updatedConfigs));
+    }
+
+    triggerToast(`Niche deleted successfully.`, 'red');
+  };
 
   // WhatsApp Business API Config State
   const [whatsappConfig, setWhatsappConfig] = useState({ accessToken: '', phoneNumberId: '', accountId: '', isConnected: false });
@@ -4171,7 +4244,7 @@ export default function App() {
                       style={{ background: 'white', border: '2px solid #1877f2', borderRadius: '12px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                     >
                       <div>
-                        <p style={{ fontWeight: '700', fontSize: '0.9rem', color: '#1c1e21' }}>{user.businessName || (activeNiche === 'dental' ? 'Zenith Dental Clinic' : 'Glow & Style Salon')}</p>
+                        <p style={{ fontWeight: '700', fontSize: '0.9rem', color: '#1c1e21' }}>{user.businessName || currentConfig.businessName}</p>
                         <p style={{ fontSize: '0.7rem', color: '#606770' }}>Meta Verified Business Profile</p>
                       </div>
                       <span style={{ color: '#1877f2', fontSize: '1.2rem' }}>✓</span>
@@ -4396,7 +4469,7 @@ export default function App() {
                 {user.role === 'admin' && <Shield size={12} style={{ color: 'var(--accent-blue)' }} />}
               </div>
               <div className="user-email">
-                {user.role === 'admin' ? 'SaaS Administrator' : `${user.businessName || (activeNiche === 'dental' ? 'Dental' : 'Salon')} Owner`}
+                {user.role === 'admin' ? 'SaaS Administrator' : `${user.businessName || currentConfig.businessName} Owner`}
               </div>
             </div>
           </div>
@@ -4528,61 +4601,99 @@ export default function App() {
           {user.role === 'admin' ? (
             <>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Select Niche Dashboard</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button 
-                  onClick={() => setActiveNiche('dental')}
-                  className="niche-switcher-card"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    textAlign: 'left',
-                    border: activeNiche === 'dental' ? '1px solid var(--accent-blue)' : '1px solid var(--border-light)',
-                    background: activeNiche === 'dental' ? 'var(--accent-blue-glow)' : 'transparent',
-                    width: '100%',
-                    color: activeNiche === 'dental' ? '#22d3ee' : 'var(--text-secondary)'
-                  }}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>🦷</span>
-                  <div>
-                    <p style={{ fontWeight: '600', fontSize: '0.85rem' }}>Zenith Dental</p>
-                    <p style={{ fontSize: '0.7rem', opacity: '0.8' }}>Dental Clinic Niche</p>
-                  </div>
-                </button>
-
-                <button 
-                  onClick={() => setActiveNiche('salon')}
-                  className="niche-switcher-card"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    textAlign: 'left',
-                    border: activeNiche === 'salon' ? '1px solid var(--accent-purple)' : '1px solid var(--border-light)',
-                    background: activeNiche === 'salon' ? 'var(--accent-purple-glow)' : 'transparent',
-                    width: '100%',
-                    color: activeNiche === 'salon' ? '#c084fc' : 'var(--text-secondary)'
-                  }}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>💇‍♀️</span>
-                  <div>
-                    <p style={{ fontWeight: '600', fontSize: '0.85rem' }}>Glow & Style</p>
-                    <p style={{ fontSize: '0.7rem', opacity: '0.8' }}>Salon & Spa Niche</p>
-                  </div>
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
+                {Object.keys(nicheConfigs).map(key => {
+                  const config = nicheConfigs[key];
+                  const isActive = activeNiche === key;
+                  const accentColor = config.colorTheme || 'var(--accent-blue)';
+                  const textColor = isActive ? '#ffffff' : 'var(--text-secondary)';
+                  const themeGlow = isActive ? (config.colorTheme?.includes('var') ? config.colorTheme + '-glow' : 'rgba(59, 130, 246, 0.15)') : 'transparent';
+                  
+                  return (
+                    <div 
+                      key={key}
+                      onClick={() => setActiveNiche(key)}
+                      className="niche-switcher-card"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        textAlign: 'left',
+                        border: isActive ? `1px solid ${accentColor}` : '1px solid var(--border-light)',
+                        background: isActive ? themeGlow : 'transparent',
+                        width: '100%',
+                        color: textColor,
+                        cursor: 'pointer',
+                        padding: '10px',
+                        borderRadius: '10px',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.2rem' }}>{config.logo || '💼'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: '600', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{config.businessName}</p>
+                        <p style={{ fontSize: '0.7rem', opacity: '0.8', textTransform: 'capitalize', margin: 0 }}>{key} Niche</p>
+                      </div>
+                      {key !== 'dental' && key !== 'salon' && (
+                        <span 
+                          title="Delete Niche"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Are you sure you want to delete the "${config.businessName}" niche?`)) {
+                              deleteNiche(key);
+                            }
+                          }}
+                          style={{ fontSize: '0.85rem', cursor: 'pointer', padding: '4px', opacity: 0.6 }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                          onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                        >
+                          ✕
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+              <button
+                onClick={() => setShowAddNicheModal(true)}
+                className="btn-secondary"
+                style={{
+                  width: '100%',
+                  marginTop: '10px',
+                  padding: '8px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px dashed var(--border-light)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                ➕ Add Custom Niche
+              </button>
             </>
           ) : (
             <div style={{
               background: 'rgba(255, 255, 255, 0.02)',
               border: '1px solid var(--border-light)',
               borderRadius: '10px',
-              padding: '10px',
+              padding: '12px 10px',
               fontSize: '0.75rem',
               textAlign: 'center',
-              color: 'var(--text-muted)'
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
             }}>
-              Locked to {user.businessName || (activeNiche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa')}
+              <span>{currentConfig.logo || '💼'}</span>
+              <span>Locked to {user.businessName || currentConfig.businessName}</span>
             </div>
           )}
         </div>
@@ -4644,7 +4755,7 @@ export default function App() {
                       Dashboard is Empty
                     </h4>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                      Would you like to load demo datasets for the <strong>{activeNiche === 'dental' ? 'Dental Clinic' : 'Hair Salon'}</strong> category to preview widgets?
+                      Would you like to load demo datasets for the <strong>{currentConfig.businessName}</strong> category to preview widgets?
                     </p>
                   </div>
                 </div>
@@ -6352,7 +6463,7 @@ export default function App() {
                       [activeNiche]: {
                         ...nicheConfigs[activeNiche],
                         businessName: updatedBusinessName,
-                        systemPrompt: `You are the primary AI Front Desk agent for ${updatedBusinessName}, a premium ${activeNiche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${updatedAddress}. 
+                        systemPrompt: `You are the primary AI Front Desk agent for ${updatedBusinessName}, a premium ${currentConfig.businessName || activeNiche} located at ${updatedAddress}. 
 Your contact phone is ${cleanedPhone} and website is ${updatedWebsite}.
 Your personality is ${updatedTone} (always polite, helpful, and concise).
 Your main tasks are:
@@ -6418,12 +6529,25 @@ Your main tasks are:
 
                         <div className="form-group">
                           <label>Business Category (Niche)</label>
-                          <input 
-                            type="text" 
-                            defaultValue={activeNiche === 'dental' ? '🦷 Dental Clinic' : '💇‍♀️ Hair Salon & Spa'} 
-                            disabled 
-                            style={{ background: '#f1f3f4', cursor: 'not-allowed' }} 
-                          />
+                          <select 
+                            value={activeNiche} 
+                            onChange={(e) => setActiveNiche(e.target.value)} 
+                            style={{ 
+                              width: '100%', 
+                              padding: '10px', 
+                              borderRadius: '8px', 
+                              border: '1px solid var(--border-light)', 
+                              background: 'var(--bg-card)', 
+                              color: 'var(--text-primary)',
+                              fontSize: '0.85rem'
+                            }} 
+                          >
+                            {Object.keys(nicheConfigs).map(key => (
+                              <option key={key} value={key}>
+                                {nicheConfigs[key].logo || '💼'} {nicheConfigs[key].businessName} ({key})
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -7459,6 +7583,142 @@ Your main tasks are:
         <Smartphone size={18} />
         <span>Simulator</span>
       </button>
+
+      {/* Add Custom Niche Modal */}
+      {showAddNicheModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '500px',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            animation: 'fdUp 0.3s ease',
+            color: 'var(--text-primary)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Add Custom Business Niche</h3>
+              <button 
+                onClick={() => setShowAddNicheModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateNiche} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Business Category ID (Single Word, lowercase e.g., gym, restaurant, clinic)</label>
+                <input 
+                  type="text" 
+                  name="nicheId" 
+                  required 
+                  placeholder="e.g. gym"
+                  pattern="^[a-z0-9_]+$"
+                  title="Only lowercase letters, numbers, and underscores allowed."
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Business Name</label>
+                <input 
+                  type="text" 
+                  name="businessName" 
+                  required 
+                  placeholder="e.g. FitLife Fitness Gym"
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Emoji Logo</label>
+                  <input 
+                    type="text" 
+                    name="logo" 
+                    required 
+                    placeholder="e.g. 🏋️"
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', textAlign: 'center' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Color Theme</label>
+                  <select 
+                    name="colorTheme"
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="var(--accent-blue)">Blue 🔵</option>
+                    <option value="var(--accent-purple)">Purple 🟣</option>
+                    <option value="#22c55e">Green 🟢</option>
+                    <option value="#eab308">Yellow 🟡</option>
+                    <option value="#ef4444">Red 🔴</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Business Welcome Greeting</label>
+                <textarea 
+                  name="greetingMessage" 
+                  required 
+                  rows="3"
+                  placeholder="Welcome greeting sent to clients on WhatsApp..."
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddNicheModal(false)}
+                  style={{ 
+                    padding: '8px 16px', 
+                    fontSize: '0.85rem', 
+                    borderRadius: '8px', 
+                    cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  style={{ 
+                    padding: '8px 16px', 
+                    fontSize: '0.85rem', 
+                    borderRadius: '8px', 
+                    cursor: 'pointer',
+                    background: 'var(--accent-blue)',
+                    border: 'none',
+                    color: '#fff',
+                    fontWeight: '600'
+                  }}
+                >
+                  Create Niche
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
