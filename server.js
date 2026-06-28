@@ -692,10 +692,9 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   try {
     console.log('[AI Engine] Initializing Vertex AI client...');
     aiClient = new GoogleGenAI({
-      vertexAI: {
-        project: process.env.GCP_PROJECT_ID || 'frontdeskai-4c8ea',
-        location: process.env.GCP_LOCATION || 'us-central1'
-      }
+      vertexai: true,
+      project: process.env.GCP_PROJECT_ID || 'frontdeskai-4c8ea',
+      location: process.env.GCP_LOCATION || 'us-central1'
     });
     console.log('Gemini AI SDK (Vertex AI) initialized successfully!');
   } catch (error) {
