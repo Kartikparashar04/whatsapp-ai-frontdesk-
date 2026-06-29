@@ -619,14 +619,25 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [selectedConvId, setSelectedConvId] = useState('');
   const [activeMessages, setActiveMessages] = useState([]);
-  const liveChatEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const prevMsgCountRef = useRef(0);
+  const prevConvIdRef = useRef('');
 
-  // Auto-scroll to bottom of chat pane when messages list changes
+  // Auto-scroll locally inside the messages pane when a chat is opened or a new message arrives
   useEffect(() => {
-    if (liveChatEndRef.current) {
-      liveChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const currentCount = activeMessages.length;
+    const currentConvId = selectedConvId;
+
+    if (currentConvId !== prevConvIdRef.current || currentCount > prevMsgCountRef.current) {
+      container.scrollTop = container.scrollHeight;
     }
-  }, [activeMessages]);
+
+    prevMsgCountRef.current = currentCount;
+    prevConvIdRef.current = currentConvId;
+  }, [activeMessages, selectedConvId]);
 
   const [replyText, setReplyText] = useState('');
   
@@ -7277,7 +7288,7 @@ Your main tasks are:
                       </div>
 
                       {/* Messages scroll pane */}
-                      <div className="handoff-messages-container">
+                      <div className="handoff-messages-container" ref={messagesContainerRef}>
                         {activeMessages.length === 0 ? (
                           <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '20px' }}>Loading conversation history...</p>
                         ) : (
@@ -7302,7 +7313,6 @@ Your main tasks are:
                             </div>
                           ))
                         )}
-                        <div ref={liveChatEndRef} />
                       </div>
 
                       {/* Reply textbox */}
