@@ -462,6 +462,59 @@ export default function App() {
 
   const [nicheConfigs, setNicheConfigs] = useState(NICHE_CONFIGS);
   const [showAddNicheModal, setShowAddNicheModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteFeedback, setDeleteFeedback] = useState('');
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleDeleteAccountSubmit = async (e) => {
+    e.preventDefault();
+    if (!deleteReason) {
+      alert("Please select a reason for leaving.");
+      return;
+    }
+    if (deleteConfirmationText.trim().toLowerCase() !== (user?.email || '').toLowerCase()) {
+      alert(`Please type your exact registered email address "${user?.email}" to confirm deletion.`);
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      const res = await authenticatedFetch(`${BACKEND_URL}/v1/users/delete-account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: deleteReason,
+          feedback: deleteFeedback
+        })
+      });
+      
+      if (res.ok) {
+        triggerToast("Your account has been permanently deleted. Goodbye!", "red");
+        
+        // Log out immediately
+        localStorage.clear();
+        setUser(null);
+        setShowAuth(true);
+        setAuthMode('login');
+        
+        // Reset states
+        setShowDeleteAccountModal(false);
+        setDeleteReason('');
+        setDeleteFeedback('');
+        setDeleteConfirmationText('');
+      } else {
+        const errJson = await res.json();
+        alert(errJson.error || "Failed to delete account. Please try again.");
+      }
+    } catch (err) {
+      console.error("Delete account error:", err);
+      alert("Network error. Failed to delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
 
   const handleCreateNiche = (e) => {
     e.preventDefault();
@@ -6889,6 +6942,43 @@ Your main tasks are:
                     Save Profile Details
                   </button>
                 </form>
+
+                {/* Danger Zone */}
+                {user && user.role !== 'staff' && (
+                  <div style={{ marginTop: '28px', borderTop: '1px solid rgba(239, 68, 68, 0.4)', paddingTop: '20px' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: '700', color: '#ef4444', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      ⚠️ Danger Zone
+                    </h4>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+                      Once you delete your account, there is no going back. All your WhatsApp AI configurations, live chats, captured leads, and scheduled appointments will be permanently removed from our servers.
+                    </p>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setDeleteReason('');
+                        setDeleteFeedback('');
+                        setDeleteConfirmationText('');
+                        setShowDeleteAccountModal(true);
+                      }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #ef4444', 
+                        background: 'rgba(239, 68, 68, 0.08)', 
+                        color: '#ef4444', 
+                        fontWeight: '600',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)' 
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#ffffff'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.color = '#ef4444'; }}
+                    >
+                      Delete Account Permanently
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -7890,6 +7980,143 @@ Your main tasks are:
                   Create Niche
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteAccountModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            animation: 'fdUp 0.3s ease',
+            color: 'var(--text-primary)',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, color: '#ef4444' }}>Permanently Delete Account</h3>
+              <button 
+                onClick={() => setShowDeleteAccountModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleDeleteAccountSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              <div style={{ background: 'rgba(239, 68, 68, 0.05)', borderLeft: '4px solid #ef4444', padding: '12px', borderRadius: '4px' }}>
+                <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: '600', margin: 0, lineHeight: '1.4' }}>
+                  Warning: All configurations, chats, templates, leads, and staff listings will be permanently deleted and cannot be recovered.
+                </p>
+              </div>
+
+              {/* Question 1: Reason for Deleting */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>
+                  Why are you deleting your account? <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select 
+                  value={deleteReason} 
+                  onChange={(e) => setDeleteReason(e.target.value)} 
+                  required
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                >
+                  <option value="">-- Select a reason --</option>
+                  <option value="too_expensive">💰 Pricing / Too expensive</option>
+                  <option value="setup_complexity">⚙️ Technical issues / Setup too complex</option>
+                  <option value="no_longer_needed">💼 No longer need an AI Receptionist</option>
+                  <option value="alternative_found">🔄 Found another alternative tool</option>
+                  <option value="other">✍️ Other (Please specify below)</option>
+                </select>
+              </div>
+
+              {/* Question 2: Additional Feedback */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>
+                  Can you share any feedback or suggestions? (Optional)
+                </label>
+                <textarea 
+                  value={deleteFeedback} 
+                  onChange={(e) => setDeleteFeedback(e.target.value)} 
+                  placeholder="How can we improve FrontDesk AI?" 
+                  rows="3"
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              {/* Question 3: Confirmation Input to Prevent Accidental Click */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)', lineHeight: '1.4' }}>
+                  Please type your registered email address <strong style={{ color: 'var(--accent-blue)', wordBreak: 'break-all' }}>{user?.email}</strong> to confirm: <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={deleteConfirmationText} 
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)} 
+                  placeholder="Type your email address here..." 
+                  required
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowDeleteAccountModal(false)}
+                  style={{ 
+                    padding: '10px 18px', 
+                    fontSize: '0.85rem', 
+                    borderRadius: '8px', 
+                    cursor: 'pointer',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isDeletingAccount || deleteConfirmationText.trim().toLowerCase() !== (user?.email || '').toLowerCase() || !deleteReason}
+                  style={{ 
+                    padding: '10px 18px', 
+                    fontSize: '0.85rem', 
+                    borderRadius: '8px', 
+                    cursor: deleteConfirmationText.trim().toLowerCase() === (user?.email || '').toLowerCase() && deleteReason ? 'pointer' : 'not-allowed',
+                    background: '#ef4444',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontWeight: '600',
+                    opacity: deleteConfirmationText.trim().toLowerCase() === (user?.email || '').toLowerCase() && deleteReason ? 1 : 0.5
+                  }}
+                >
+                  {isDeletingAccount ? 'Deleting...' : 'Delete Permanently'}
+                </button>
+              </div>
+
             </form>
           </div>
         </div>

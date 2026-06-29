@@ -2704,6 +2704,59 @@ app.delete('/v1/staff/:id', checkAuth, async (req, res) => {
   }
 });
 
+app.delete('/v1/users/delete-account', checkAuth, async (req, res) => {
+  try {
+    const emailKey = req.user.ownerEmail;
+    
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Business owner only.' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Database is not initialized.' });
+    }
+
+    console.log(`[Account Deletion] Initiating permanent deletion for user: ${emailKey}`);
+    const { reason, feedback } = req.body;
+    console.log(`[Account Deletion Feedback] Email: ${emailKey}, Reason: ${reason || 'N/A'}, Feedback: ${feedback || 'N/A'}`);
+
+    await db.run('BEGIN TRANSACTION');
+    try {
+      // 1. Delete conversations & messages
+      const conversations = await db.all('SELECT id FROM conversations WHERE owner_email = ?', emailKey);
+      if (conversations && conversations.length > 0) {
+        const convIds = conversations.map(c => c.id);
+        const placeholders = convIds.map(() => '?').join(',');
+        await db.run(`DELETE FROM messages WHERE conversation_id IN (${placeholders})`, ...convIds);
+      }
+      await db.run('DELETE FROM conversations WHERE owner_email = ?', emailKey);
+
+      // 2. Delete other relational data
+      await db.run('DELETE FROM leads WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM appointments WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM staff WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM referrals WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM reviews WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM knowledge_base WHERE owner_email = ?', emailKey);
+      await db.run('DELETE FROM faqs WHERE owner_email = ?', emailKey);
+
+      // 3. Delete business profile and user credentials
+      await db.run('DELETE FROM business_profiles WHERE email = ?', emailKey);
+      await db.run('DELETE FROM users WHERE email = ?', emailKey);
+
+      await db.run('COMMIT');
+      console.log(`[Account Deletion] Permanent deletion completed successfully for user: ${emailKey}`);
+      return res.status(200).json({ success: true, message: 'Account permanently deleted.' });
+    } catch (txErr) {
+      await db.run('ROLLBACK');
+      throw txErr;
+    }
+  } catch (err) {
+    console.error('[Account Deletion Error] Error deleting account:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/v1/admin/businesses', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.email.toLowerCase();
