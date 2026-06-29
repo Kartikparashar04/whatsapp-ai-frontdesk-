@@ -521,8 +521,8 @@ export default function App() {
     const form = e.target;
     const nicheId = form.nicheId.value.trim().toLowerCase();
     const businessName = form.businessName.value.trim();
-    const logo = form.logo.value.trim();
-    const colorTheme = form.colorTheme.value;
+    const logo = '💼';
+    const colorTheme = 'var(--accent-blue)';
     const greetingMessage = form.greetingMessage.value.trim();
 
     if (nicheConfigs[nicheId]) {
@@ -7935,31 +7935,7 @@ Your main tasks are:
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Emoji Logo</label>
-                  <input 
-                    type="text" 
-                    name="logo" 
-                    required 
-                    placeholder="e.g. 🏋️"
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', textAlign: 'center' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Color Theme</label>
-                  <select 
-                    name="colorTheme"
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="var(--accent-blue)">Blue 🔵</option>
-                    <option value="var(--accent-purple)">Purple 🟣</option>
-                    <option value="#22c55e">Green 🟢</option>
-                    <option value="#eab308">Yellow 🟡</option>
-                    <option value="#ef4444">Red 🔴</option>
-                  </select>
-                </div>
-              </div>
+
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Business Welcome Greeting</label>
