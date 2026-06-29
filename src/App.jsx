@@ -6669,7 +6669,13 @@ Your main tasks are:
                           <label>Business Category (Niche)</label>
                           <select 
                             value={activeNiche} 
-                            onChange={(e) => setActiveNiche(e.target.value)} 
+                            onChange={(e) => {
+                              if (e.target.value === 'custom_add') {
+                                setShowAddNicheModal(true);
+                              } else {
+                                setActiveNiche(e.target.value);
+                              }
+                            }} 
                             style={{ 
                               width: '100%', 
                               padding: '10px', 
@@ -6682,9 +6688,12 @@ Your main tasks are:
                           >
                             {Object.keys(nicheConfigs).map(key => (
                               <option key={key} value={key}>
-                                {nicheConfigs[key].logo || '💼'} {nicheConfigs[key].businessName} ({key})
+                                {nicheConfigs[key].logo || '💼'} {getCategoryDisplayName(key)}
                               </option>
                             ))}
+                            <option value="custom_add" style={{ fontWeight: 'bold', color: 'var(--accent-purple)' }}>
+                              ➕ Add Custom Category...
+                            </option>
                           </select>
                         </div>
                       </div>
