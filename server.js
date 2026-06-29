@@ -858,6 +858,67 @@ async function getProfileByPhoneId(phoneId) {
 }
 
 /**
+ * Background Scheduler: Scan upcoming confirmed appointments and send WhatsApp reminders
+ */
+async function checkAndSendAppointmentReminders() {
+  try {
+    if (!db) return;
+    console.log('[Reminder Scheduler] Scanning for upcoming confirmed appointments...');
+
+    // Fetch confirmed appointments where reminder_sent = 0 and business is not suspended
+    const appointments = await db.all(`
+      SELECT a.*, b.email as owner_email, b.name as business_owner_name, b.business_name, b.business_phone, b.business_address, b.business_website, b.whatsapp_config, b.is_suspended
+      FROM appointments a
+      JOIN business_profiles b ON a.owner_email = b.email
+      WHERE a.status = 'confirmed' AND a.reminder_sent = 0 AND b.is_suspended = 0
+    `);
+
+    if (!appointments || appointments.length === 0) {
+      console.log('[Reminder Scheduler] No pending reminders found.');
+      return;
+    }
+
+    const now = new Date();
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+
+    for (const appt of appointments) {
+      const apptTime = new Date(appt.date_time);
+      const diffMs = apptTime - now;
+
+      // Send reminder if the appointment is in the future and less than 2 hours away
+      if (diffMs > 0 && diffMs <= twoHoursMs) {
+        console.log(`[Reminder Scheduler] Sending WhatsApp reminder to ${appt.name} (${appt.phone}) for appointment ID ${appt.id}...`);
+
+        // Format a friendly reminder text
+        const timeStr = apptTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const reminderText = `Reminder: Hello ${appt.name}, this is a friendly reminder for your upcoming appointment for "${appt.service}" today at ${timeStr}. We look forward to seeing you!\n\n📍 Location: ${appt.business_address || 'Our Clinic/Salon'}`;
+
+        // Parse WhatsApp configuration
+        const profile = {
+          email: appt.owner_email,
+          businessName: appt.business_name,
+          whatsappConfig: appt.whatsapp_config ? JSON.parse(appt.whatsapp_config) : {}
+        };
+        if (profile.whatsappConfig.accessToken) {
+          profile.whatsappConfig.accessToken = decryptToken(profile.whatsappConfig.accessToken);
+        }
+
+        try {
+          await sendWhatsAppMessage(appt.phone, reminderText, profile);
+          console.log(`[Reminder Scheduler] WhatsApp reminder sent successfully to ${appt.name}. Updating DB status...`);
+          
+          await db.run('UPDATE appointments SET reminder_sent = 1 WHERE id = ?', appt.id);
+        } catch (sendErr) {
+          console.error(`[Reminder Scheduler] Error sending WhatsApp message to ${appt.phone}:`, sendErr.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Reminder Scheduler Error] Error scanning reminders:', error.message);
+  }
+}
+
+/**
  * Helper: Clean and parse LLM JSON responses (stripping markdown backticks if any)
  */
 function parseCleanJSON(rawText) {
@@ -2897,6 +2958,10 @@ app.listen(PORT, () => {
   console.log(`🔗 Webhook Callback URL endpoint: http://localhost:${PORT}/v1/webhooks`);
   console.log(`🔑 Verification Token: ${VERIFY_TOKEN}`);
   console.log(`======================================================\n`);
+
+  // Start the appointment reminders background scheduler
+  setInterval(checkAndSendAppointmentReminders, 10 * 60 * 1000); // scan every 10 minutes
+  setTimeout(checkAndSendAppointmentReminders, 15000); // initial check after 15 seconds
 });
 
 // Triggering new deployment run to verify GitHub Actions green status
