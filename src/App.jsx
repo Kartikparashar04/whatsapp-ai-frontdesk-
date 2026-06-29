@@ -7778,7 +7778,7 @@ Your main tasks are:
                   placeholder="e.g. gym"
                   pattern="^[a-z0-9_]+$"
                   title="Only lowercase letters, numbers, and underscores allowed."
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
                 />
               </div>
 
@@ -7789,7 +7789,7 @@ Your main tasks are:
                   name="businessName" 
                   required 
                   placeholder="e.g. FitLife Fitness Gym"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
                 />
               </div>
 
@@ -7801,7 +7801,7 @@ Your main tasks are:
                     name="logo" 
                     required 
                     placeholder="e.g. 🏋️"
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', textAlign: 'center' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', textAlign: 'center' }}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -7826,7 +7826,7 @@ Your main tasks are:
                   required 
                   rows="3"
                   placeholder="Welcome greeting sent to clients on WhatsApp..."
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
                 />
               </div>
 
@@ -7839,7 +7839,7 @@ Your main tasks are:
                     fontSize: '0.85rem', 
                     borderRadius: '8px', 
                     cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'var(--bg-card)',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-primary)'
                   }}
