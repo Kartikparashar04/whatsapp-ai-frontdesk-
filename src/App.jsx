@@ -7748,7 +7748,7 @@ Your main tasks are:
           padding: '20px'
         }}>
           <div style={{
-            background: 'var(--bg-card)',
+            background: 'var(--bg-secondary)',
             border: '1px solid var(--border-light)',
             borderRadius: '16px',
             width: '100%',
@@ -7778,7 +7778,7 @@ Your main tasks are:
                   placeholder="e.g. gym"
                   pattern="^[a-z0-9_]+$"
                   title="Only lowercase letters, numbers, and underscores allowed."
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                 />
               </div>
 
@@ -7789,7 +7789,7 @@ Your main tasks are:
                   name="businessName" 
                   required 
                   placeholder="e.g. FitLife Fitness Gym"
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                 />
               </div>
 
@@ -7801,14 +7801,14 @@ Your main tasks are:
                     name="logo" 
                     required 
                     placeholder="e.g. 🏋️"
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', textAlign: 'center' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', textAlign: 'center' }}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-muted)' }}>Color Theme</label>
                   <select 
                     name="colorTheme"
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                   >
                     <option value="var(--accent-blue)">Blue 🔵</option>
                     <option value="var(--accent-purple)">Purple 🟣</option>
@@ -7826,7 +7826,7 @@ Your main tasks are:
                   required 
                   rows="3"
                   placeholder="Welcome greeting sent to clients on WhatsApp..."
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
                 />
               </div>
 
@@ -7839,7 +7839,7 @@ Your main tasks are:
                     fontSize: '0.85rem', 
                     borderRadius: '8px', 
                     cursor: 'pointer',
-                    background: 'var(--bg-card)',
+                    background: 'var(--bg-secondary)',
                     border: '1px solid var(--border-light)',
                     color: 'var(--text-primary)'
                   }}
