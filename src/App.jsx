@@ -7253,15 +7253,17 @@ Your main tasks are:
                           }}
                           className="btn-primary" 
                           style={{ 
-                            background: currentConv.status === 'human' ? 'linear-gradient(135deg, #1e8e3e 0%, #34a853 100%)' : 'linear-gradient(135deg, #8a2be2 0%, #da70d6 100%)', 
+                            background: currentConv.status === 'human' ? 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' : 'linear-gradient(135deg, #10b981 0%, #34d399 100%)', 
                             padding: '8px 16px', 
                             fontSize: '0.75rem',
                             border: 'none',
                             color: '#fff',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            borderRadius: '8px',
+                            fontWeight: '600'
                           }}
                         >
-                          {currentConv.status === 'human' ? '✅ AI Response Active' : '🙋‍♂️ Pause AI & Takeover'}
+                          {currentConv.status === 'human' ? '🤖 Enable AI Chatbot' : '✅ AI Assistant Active'}
                         </button>
                       </div>
 
