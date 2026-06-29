@@ -6608,6 +6608,36 @@ export default function App() {
                       <div className="usage-meter-fill" style={{ width: '100%', backgroundColor: 'var(--accent-green)' }}></div>
                     </div>
                   </div>
+                  
+                  {user && user.role !== 'staff' && (
+                    <div style={{ marginTop: '24px', borderTop: '1px solid rgba(239, 68, 68, 0.3)', paddingTop: '16px' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setDeleteReason('');
+                          setDeleteFeedback('');
+                          setDeleteConfirmationText('');
+                          setShowDeleteAccountModal(true);
+                        }}
+                        style={{ 
+                          width: '100%', 
+                          padding: '10px 14px', 
+                          borderRadius: '8px', 
+                          border: '1px solid #ef4444', 
+                          background: 'rgba(239, 68, 68, 0.08)', 
+                          color: '#ef4444', 
+                          fontWeight: '600',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          transition: 'var(--transition-smooth)' 
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#ffffff'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.color = '#ef4444'; }}
+                      >
+                        Delete Account Permanently
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
