@@ -21,12 +21,16 @@ export default function OnboardingWizard({ user, setUser, nicheConfigs, setNiche
   const [greetingMessage, setGreetingMessage] = React.useState('');
 
   React.useEffect(() => {
-    if (niche === 'dental') {
-      setGreetingMessage(`Hi! Thank you for contacting ${businessName || 'our clinic'}. 🦷 I'm your 24/7 AI front desk. How can I help you today? Would you like to schedule an appointment, check our service price list, or find our location?`);
+    const activeConfig = nicheConfigs[niche];
+    if (activeConfig) {
+      // Replace fallback placeholder if needed, otherwise use greeting from template
+      const templateGreeting = activeConfig.greetingMessage || '';
+      const personalizedGreeting = templateGreeting.replace(/Zenith Dental|Glow & Style Salon/g, businessName || activeConfig.businessName);
+      setGreetingMessage(personalizedGreeting || `Hello! Welcome to ${businessName || activeConfig.businessName || 'our business'}. I'm your AI front desk assistant. How can I help you today?`);
     } else {
-      setGreetingMessage(`Hello! Welcome to ${businessName || 'our salon'}. 💇‍♀️ I'm your personal AI front desk assistant. Would you like to book a styling or spa slot, explore our service prices, or know our timings?`);
+      setGreetingMessage(`Hello! Welcome to ${businessName || 'our business'}. I'm your AI front desk assistant. How can I help you today?`);
     }
-  }, [niche, businessName]);
+  }, [niche, businessName, nicheConfigs]);
 
   const handleNext = () => {
     if (step === 1) {
@@ -70,7 +74,7 @@ export default function OnboardingWizard({ user, setUser, nicheConfigs, setNiche
     const profilesLocal = localStorage.getItem('frontdesk_user_profiles');
     const profiles = profilesLocal ? JSON.parse(profilesLocal) : {};
     
-    const systemPromptText = `You are the primary AI Front Desk agent for ${businessName.trim()}, a premium ${niche === 'dental' ? 'Dental Clinic' : 'Hair Salon & Spa'} located at ${businessAddress.trim()}. 
+    const systemPromptText = `You are the primary AI Front Desk agent for ${businessName.trim()}, a premium ${nicheConfigs[niche]?.businessName || niche} located at ${businessAddress.trim()}. 
 Your contact phone is ${cleanedPhone} and website is ${trimmedWebsite}.
 Your personality is ${aiPersona} (always polite, helpful, and concise).
 Your main tasks are:
@@ -158,24 +162,31 @@ Your main tasks are:
             <div className="onboarding-step-content animate-slide-in">
               <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '20px' }}>Step 1: Choose Your Business Category</h3>
               
-              <div className="onboarding-niche-grid">
-                <div 
-                  className={`onboarding-niche-select-card ${niche === 'dental' ? 'selected' : ''}`}
-                  onClick={() => setNiche('dental')}
-                >
-                  <span className="niche-emoji">🦷</span>
-                  <h4>Dental Clinic</h4>
-                  <p>For dental practices, surgeons, and cosmetic clinics (e.g. implants, whitening, checkups)</p>
-                </div>
-                
-                <div 
-                  className={`onboarding-niche-select-card ${niche === 'salon' ? 'selected' : ''}`}
-                  onClick={() => setNiche('salon')}
-                >
-                  <span className="niche-emoji">💇‍♀️</span>
-                  <h4>Hair Salon & Spa</h4>
-                  <p>For hair styling, body massage, nail care, and wellness spas (e.g. haircuts, styling, manicure)</p>
-                </div>
+              <div className="onboarding-niche-grid" style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: '12px', 
+                maxHeight: '260px', 
+                overflowY: 'auto', 
+                padding: '8px 4px',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.4)'
+              }}>
+                {Object.keys(nicheConfigs).map(key => (
+                  <div 
+                    key={key}
+                    className={`onboarding-niche-select-card ${niche === key ? 'selected' : ''}`}
+                    onClick={() => setNiche(key)}
+                    style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    <span className="niche-emoji" style={{ fontSize: '1.5rem' }}>{nicheConfigs[key].logo || '💼'}</span>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 'bold', margin: '4px 0 0 0' }}>{nicheConfigs[key].businessName}</h4>
+                    <p style={{ fontSize: '0.7rem', opacity: '0.8', margin: 0, lineHeight: '1.3' }}>
+                      {nicheConfigs[key].systemPrompt ? nicheConfigs[key].systemPrompt.split('.')[0] + '.' : `Setup custom front desk assistant.`}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               <div className="form-group">
