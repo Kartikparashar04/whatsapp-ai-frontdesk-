@@ -6679,6 +6679,7 @@ export default function App() {
                   const updatedUser = {
                     ...user,
                     name: updatedName,
+                    niche: activeNiche,
                     businessName: updatedBusinessName,
                     businessWebsite: updatedWebsite,
                     businessPhone: cleanedPhone,
