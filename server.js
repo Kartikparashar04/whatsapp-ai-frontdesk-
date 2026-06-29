@@ -740,12 +740,94 @@ async function getProfileByEmail(email) {
       row.systemPrompt = row.system_prompt;
       row.greetingMessage = row.greeting_message;
       row.reviewUrl = row.review_url;
+
+      // Real usage count (bot responses)
+      let usageCount = 0;
+      try {
+        const usageRow = await db.get(`
+          SELECT COUNT(*) as count FROM messages m
+          JOIN conversations c ON m.conversation_id = c.id
+          WHERE c.owner_email = ? AND m.sender = 'bot'
+        `, email.toLowerCase());
+        usageCount = usageRow ? usageRow.count : 0;
+      } catch (usageErr) {
+        console.error("Error counting AI responses:", usageErr);
+      }
+      row.usageCount = usageCount;
+
+      // Determine limits based on plan
+      let limit = 500; // default for Starter
+      const plan = (row.subscription_plan || '').toLowerCase();
+      if (plan === 'pro') {
+        limit = 100000; // unlimited / high limit
+      } else if (plan === 'starter' || row.is_subscribed === 1) {
+        limit = 500;
+      } else {
+        limit = 50; // free trial limit
+      }
+      row.limit = limit;
     }
     return row || null;
   } catch (error) {
     console.error('Error fetching profile by email from SQL:', error.message);
     return null;
   }
+}
+
+async function checkSubscriptionLimits(profile) {
+  if (!profile || !profile.email) return { allowed: true };
+  const emailKey = profile.email.toLowerCase();
+
+  const isAdmin = emailKey === 'kartikparashar15@gmail.com' || emailKey === 'admin@frontdesk.com' || profile.role === 'admin';
+  if (isAdmin) return { allowed: true, limit: 100000, count: 0 };
+
+  // Count AI messages (bot responses)
+  let usageCount = 0;
+  try {
+    if (db) {
+      const usageRow = await db.get(`
+        SELECT COUNT(*) as count FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        WHERE c.owner_email = ? AND m.sender = 'bot'
+      `, emailKey);
+      usageCount = usageRow ? usageRow.count : 0;
+    }
+  } catch (err) {
+    console.error("Error counting AI responses:", err);
+  }
+
+  // Determine limits based on plan
+  let limit = 500; // default for Starter
+  const plan = (profile.subscription_plan || profile.subscriptionPlan || '').toLowerCase();
+  const isSubscribed = profile.is_subscribed === 1 || profile.isSubscribed === true || profile.is_subscribed === '1';
+  
+  if (plan === 'pro') {
+    limit = 100000; // high limit / unlimited
+  } else if (plan === 'starter' || isSubscribed) {
+    limit = 500;
+  } else {
+    limit = 50; // free trial limit
+  }
+
+  if (usageCount >= limit && limit < 100000) {
+    // Suspend subscription if exceeded (stop plan)
+    try {
+      if (db) {
+        await db.run(
+          `UPDATE business_profiles 
+           SET is_subscribed = 0, subscription_plan = NULL 
+           WHERE email = ?`, 
+          emailKey
+        );
+        console.log(`[Limit Engine] User ${emailKey} exceeded limit of ${limit} msgs. Subscription plan stopped.`);
+      }
+    } catch (err) {
+      console.error("Error updating profile on limit exceed:", err);
+    }
+    return { allowed: false, limit, count: usageCount };
+  }
+
+  return { allowed: true, limit, count: usageCount };
 }
 
 /**
@@ -918,6 +1000,13 @@ app.post('/v1/webhooks', verifyMetaWebhookSignature, async (req, res) => {
         };
 
         // Process message, reply on WhatsApp, and save to CRM database in a single Gemini call
+        const limitCheck = await checkSubscriptionLimits(activeProfile);
+        if (!limitCheck.allowed) {
+          console.warn(`[Limit Engine] User ${activeProfile.email} has exceeded message limits. Sending upgrade warning.`);
+          await sendWhatsAppMessage(customerPhone, "Your business subscription limit has been exceeded. Please upgrade your plan in the dashboard to continue using FrontDesk AI.", activeProfile);
+          return res.status(200).send('EVENT_RECEIVED');
+        }
+
         if (aiClient) {
           processIncomingMessage(userText, customerPhone, customerName, activeProfile).catch(err => {
             console.error('Error running combined AI message processor:', err.message);

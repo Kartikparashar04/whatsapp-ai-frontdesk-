@@ -824,6 +824,26 @@ export default function App() {
           return waRevs;
         });
       }
+
+      // 5. Fetch business profile usage limits
+      const resProfile = await authenticatedFetch(`${BACKEND_URL}/v1/business-profile`);
+      if (resProfile.ok) {
+        const profileData = await resProfile.json();
+        if (profileData) {
+          setUser(prev => {
+            if (!prev) return prev;
+            if (prev.usageCount === profileData.usageCount && prev.limit === profileData.limit && prev.isSubscribed === (profileData.is_subscribed === 1 || profileData.isSubscribed === true)) {
+              return prev;
+            }
+            const updated = {
+              ...prev,
+              ...profileData
+            };
+            localStorage.setItem('frontdesk_user', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }
     } catch (err) {
       // Fail silently
     }
@@ -6511,10 +6531,18 @@ export default function App() {
                   <div className="usage-meter-group">
                     <div className="usage-meter-header">
                       <span>AI WhatsApp Responses</span>
-                      <span>42 / 500 Msgs</span>
+                      <span>
+                        {user && typeof user.usageCount === 'number' ? user.usageCount : 0} / {user && typeof user.limit === 'number' ? (user.limit >= 100000 ? 'Unlimited' : `${user.limit} Msgs`) : '500 Msgs'}
+                      </span>
                     </div>
                     <div className="usage-meter-bar">
-                      <div className="usage-meter-fill" style={{ width: '8.4%', backgroundColor: 'var(--accent-blue)' }}></div>
+                      <div 
+                        className="usage-meter-fill" 
+                        style={{ 
+                          width: `${Math.min(100, (((user && user.usageCount) || 0) / ((user && user.limit) || 500)) * 100)}%`, 
+                          backgroundColor: 'var(--accent-blue)' 
+                        }}
+                      ></div>
                     </div>
                   </div>
 
