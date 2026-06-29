@@ -619,6 +619,15 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [selectedConvId, setSelectedConvId] = useState('');
   const [activeMessages, setActiveMessages] = useState([]);
+  const liveChatEndRef = useRef(null);
+
+  // Auto-scroll to bottom of chat pane when messages list changes
+  useEffect(() => {
+    if (liveChatEndRef.current) {
+      liveChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeMessages]);
+
   const [replyText, setReplyText] = useState('');
   
   const [kbFiles, setKbFiles] = useState([]);
@@ -7293,6 +7302,7 @@ Your main tasks are:
                             </div>
                           ))
                         )}
+                        <div ref={liveChatEndRef} />
                       </div>
 
                       {/* Reply textbox */}
