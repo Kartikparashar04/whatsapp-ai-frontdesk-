@@ -4692,7 +4692,7 @@ export default function App() {
                 className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
-                <Users size={18} />
+                <TrendingUp size={18} style={{ color: 'var(--accent-blue)' }} />
                 <span>Dashboard</span>
               </button>
             </li>
@@ -4702,7 +4702,7 @@ export default function App() {
                 className={`menu-item ${activeTab === 'leads' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
-                <MessageSquare size={18} />
+                <Users size={18} />
                 <span>Lead Manager</span>
               </button>
             </li>
@@ -5163,9 +5163,33 @@ export default function App() {
                           </span>
                         </div>
                       ))
+                    ) : reviews && reviews.filter(r => r.niche === activeNiche).length > 0 ? (
+                      reviews
+                        .filter(r => r.niche === activeNiche)
+                        .map((rev, index) => (
+                          <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{rev.customerName}</span>
+                              <span className="badge badge-converted" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', color: 'var(--accent-purple)' }}>
+                                Business Review
+                              </span>
+                            </div>
+                            {rev.rating > 0 && (
+                              <div className="star-rating">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star key={i} size={12} fill={i < rev.rating ? 'var(--accent-yellow)' : 'transparent'} style={{ color: 'var(--accent-yellow)' }} />
+                                ))}
+                              </div>
+                            )}
+                            {rev.comment && <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>"{rev.comment}"</p>}
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              Status: <span style={{ textTransform: 'capitalize', color: rev.status === 'public' ? 'var(--accent-green)' : 'var(--text-secondary)' }}>{rev.status}</span>
+                            </span>
+                          </div>
+                        ))
                     ) : (
                       <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        No Google reviews synced yet. Complete setup in profile to pull live reviews.
+                        No customer reviews synced yet. Pull reviews by setting up Google Places in settings.
                       </div>
                     )}
                   </div>
@@ -6792,7 +6816,7 @@ Your main tasks are:
                               padding: '10px', 
                               borderRadius: '8px', 
                               border: '1px solid var(--border-light)', 
-                              background: 'var(--bg-card)', 
+                              background: 'var(--bg-secondary)', 
                               color: 'var(--text-primary)',
                               fontSize: '0.85rem'
                             }} 
@@ -6861,7 +6885,7 @@ Your main tasks are:
                               onChange={handlePlaceSearchChange}
                               style={{
                                 paddingLeft: '32px',
-                                background: 'rgba(255,255,255,0.03)',
+                                background: 'var(--bg-secondary)',
                                 border: '1px solid var(--border-light)',
                                 borderRadius: '8px',
                                 color: 'var(--text-primary)',
@@ -6897,7 +6921,7 @@ Your main tasks are:
                               top: '100%',
                               left: 0,
                               right: 0,
-                              background: '#1a1d24',
+                              background: 'var(--bg-secondary)',
                               border: '1px solid var(--border-light)',
                               borderRadius: '8px',
                               boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
@@ -6920,8 +6944,8 @@ Your main tasks are:
                                     gap: '2px',
                                     textAlign: 'left'
                                   }}
-                                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
                                 >
                                   <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--accent-primary)' }}>{match.name}</div>
                                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{match.address}</div>

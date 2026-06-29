@@ -999,6 +999,12 @@ app.post('/v1/webhooks', verifyMetaWebhookSignature, async (req, res) => {
           email: 'kartikparashar15@gmail.com'
         };
 
+        if (activeProfile.is_suspended === 1 || activeProfile.isSuspended === 1 || activeProfile.is_suspended === true) {
+          console.warn(`[Suspension Engine] User ${activeProfile.email} is suspended. Webhook message blocked.`);
+          await sendWhatsAppMessage(customerPhone, "This business account is temporarily suspended. Please contact support.", activeProfile);
+          return res.status(200).send('EVENT_RECEIVED');
+        }
+
         // Process message, reply on WhatsApp, and save to CRM database in a single Gemini call
         const limitCheck = await checkSubscriptionLimits(activeProfile);
         if (!limitCheck.allowed) {
@@ -1366,8 +1372,39 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
       }
     }
 
-    const profile = await getProfileByEmail(emailKey);
+    let profile = await getProfileByEmail(emailKey);
     const isAdmin = emailKey === 'kartikparashar15@gmail.com' || emailKey === 'admin@frontdesk.com' || (profile && profile.role === 'admin');
+    
+    if (!profile) {
+      // Initialize default business profile to start their free trial automatically
+      const defaultName = emailKey.split('@')[0];
+      const defaultBusinessName = `${defaultName.charAt(0).toUpperCase() + defaultName.slice(1)}'s Business`;
+      const nowStr = new Date().toISOString();
+      
+      try {
+        await db.run(`
+          INSERT INTO business_profiles (
+            email, name, role, niche, is_onboarded, is_subscribed, 
+            business_name, business_phone, business_address, business_website, 
+            ai_persona, trial_start, subscription_plan
+          ) VALUES (?, ?, ?, 'dental', 0, 0, ?, ?, ?, ?, 'Friendly', ?, NULL)
+        `,
+          emailKey,
+          defaultName,
+          isAdmin ? 'admin' : 'owner',
+          defaultBusinessName,
+          '+91 99000 88000',
+          '100 Feet Road, Indiranagar, Bangalore',
+          'https://www.frontdeskai.com',
+          nowStr
+        );
+        console.log(`[SQL Database] Automatically initialized default business profile and trial for new user: ${emailKey}`);
+        profile = await getProfileByEmail(emailKey);
+      } catch (insertErr) {
+        console.error("[SQL Database] Error creating default profile:", insertErr.message);
+      }
+    }
+
     if (profile) {
       return res.status(200).json({
         ...profile,
@@ -1379,6 +1416,7 @@ app.get('/v1/business-profile', checkAuth, async (req, res) => {
         }
       });
     }
+
     return res.status(200).json({
       email: emailKey,
       isNew: true,
