@@ -4818,21 +4818,11 @@ export default function App() {
           </ul>
         </div>
 
-        {/* Admin Switcher & Sign Out */}
         <div className="sidebar-niche-select">
-          <button 
-            onClick={handleLogOut}
-            className="menu-item"
-            style={{ width: '100%', border: 'none', background: 'none', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: 'var(--accent-pink)' }}
-          >
-            <LogOut size={18} />
-            <span>Sign Out</span>
-          </button>
-
           {user.role === 'admin' ? (
             <>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 'bold', textTransform: 'uppercase' }}>Select Niche Dashboard</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px', marginBottom: '16px' }}>
                 {Object.keys(nicheConfigs).map(key => {
                   const config = nicheConfigs[key];
                   const isActive = activeNiche === key;
@@ -4891,7 +4881,7 @@ export default function App() {
                 className="btn-secondary"
                 style={{
                   width: '100%',
-                  marginTop: '10px',
+                  marginBottom: '16px',
                   padding: '8px 12px',
                   fontSize: '0.8rem',
                   fontWeight: '600',
@@ -4921,12 +4911,22 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px'
+              gap: '6px',
+              marginBottom: '16px'
             }}>
               <span>{currentConfig.logo || '💼'}</span>
               <span>Locked to {user.businessName || currentConfig.businessName}</span>
             </div>
           )}
+
+          <button 
+            onClick={handleLogOut}
+            className="menu-item"
+            style={{ width: '100%', border: 'none', background: 'none', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-pink)' }}
+          >
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
