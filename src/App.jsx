@@ -186,6 +186,32 @@ const TEXT_MID = "#374151";
 const TEXT_GRAY = "#6B7280";
 const BORDER = "#E5E7EB";
 
+const SECTION_MAP = {
+  'dashboard': 'dashboard',
+  'lead-manager': 'leads',
+  'live-chat': 'livechat',
+  'appointments': 'appointments',
+  'automation': 'automation',
+  'knowledge-base': 'knowledge',
+  'marketing-broadcast': 'campaigns',
+  'billing': 'billing',
+  'my-profile': 'profile',
+  'saas-admin': 'admin_panel'
+};
+
+const TAB_MAP = {
+  'dashboard': 'dashboard',
+  'leads': 'lead-manager',
+  'livechat': 'live-chat',
+  'appointments': 'appointments',
+  'automation': 'automation',
+  'knowledge': 'knowledge-base',
+  'campaigns': 'marketing-broadcast',
+  'billing': 'billing',
+  'profile': 'my-profile',
+  'admin_panel': 'saas-admin'
+};
+
 const chatMsgs = [
   { from:"user", text:"Hi, appointment book karni hai", delay:0 },
   { from:"bot",  text:"Namaste! 🙏 Welcome to Zenith Dental. Main aapka AI Front Desk hoon. Kaunsi service chahiye?", delay:1200 },
@@ -396,8 +422,11 @@ export default function App() {
       } else if (path === '/signup') {
         setShowAuth(true);
         setAuthMode('signup');
-      } else if (path === '/' || path === '') {
+      } else {
         setShowAuth(false);
+        const params = new URLSearchParams(window.location.search);
+        const section = params.get('section');
+        setActiveTab(SECTION_MAP[section] || 'dashboard');
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -435,7 +464,19 @@ export default function App() {
   const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   // Navigation & Niche Selection
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get('section');
+    return SECTION_MAP[section] || 'dashboard';
+  });
+
+  const navigateToSection = (tabName) => {
+    setActiveTab(tabName);
+    const sectionName = TAB_MAP[tabName] || 'dashboard';
+    const newUrl = sectionName === 'dashboard' ? '/dashboard' : `/dashboard?section=${sectionName}`;
+    window.history.pushState({ section: sectionName }, '', newUrl);
+  };
   const [activeNiche, setActiveNiche] = useState('dental');
   const [signupNicheType, setSignupNicheType] = useState('dental');
   const [customNicheName, setCustomNicheName] = useState('');
@@ -3021,11 +3062,11 @@ export default function App() {
   const filteredLeads = leads
     .filter(l => l.niche === activeNiche)
     .filter(l => {
-      const query = searchQuery.toLowerCase();
-      const matchSearch = l.name.toLowerCase().includes(query) || 
-                          l.phone.includes(query) || 
-                          l.requirement.toLowerCase().includes(query) ||
-                          l.location.toLowerCase().includes(query);
+      const query = (searchQuery || '').toLowerCase();
+      const matchSearch = (l.name || '').toLowerCase().includes(query) || 
+                          (l.phone || '').includes(query) || 
+                          (l.requirement || '').toLowerCase().includes(query) ||
+                          (l.location || '').toLowerCase().includes(query);
       if (leadFilter === 'all') return matchSearch;
       return matchSearch && l.status === leadFilter;
     });
@@ -4243,7 +4284,7 @@ export default function App() {
             Your 3-day free trial has expired. To keep using {featureName}, please select one of our premium plans in the Billing tab.
           </p>
           <button 
-            onClick={() => setActiveTab('billing')}
+            onClick={() => navigateToSection('billing')}
             style={{
               padding: '10px 24px',
               borderRadius: '8px',
@@ -4708,7 +4749,7 @@ export default function App() {
           <ul className="sidebar-menu">
             <li>
               <button 
-                onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToSection('dashboard'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -4718,7 +4759,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => { setActiveTab('leads'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToSection('leads'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'leads' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -4728,7 +4769,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => { setActiveTab('livechat'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToSection('livechat'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'livechat' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -4738,7 +4779,7 @@ export default function App() {
             </li>
             <li>
               <button 
-                onClick={() => { setActiveTab('appointments'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToSection('appointments'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'appointments' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -4750,7 +4791,7 @@ export default function App() {
               <>
                 <li>
                   <button 
-                    onClick={() => { setActiveTab('automation'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { navigateToSection('automation'); setIsMobileMenuOpen(false); }}
                     className={`menu-item ${activeTab === 'automation' ? 'active' : ''}`}
                     style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
                   >
@@ -4760,7 +4801,7 @@ export default function App() {
                 </li>
                 <li>
                   <button 
-                    onClick={() => { setActiveTab('knowledge'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { navigateToSection('knowledge'); setIsMobileMenuOpen(false); }}
                     className={`menu-item ${activeTab === 'knowledge' ? 'active' : ''}`}
                     style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
                   >
@@ -4771,7 +4812,7 @@ export default function App() {
 
                 <li>
                   <button 
-                    onClick={() => { setActiveTab('campaigns'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { navigateToSection('campaigns'); setIsMobileMenuOpen(false); }}
                     className={`menu-item ${activeTab === 'campaigns' ? 'active' : ''}`}
                     style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
                   >
@@ -4784,7 +4825,7 @@ export default function App() {
             {(user.role !== 'staff' || user.permissions?.canViewBilling) && (
               <li>
                 <button 
-                  onClick={() => { setActiveTab('billing'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { navigateToSection('billing'); setIsMobileMenuOpen(false); }}
                   className={`menu-item ${activeTab === 'billing' ? 'active' : ''}`}
                   style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
                 >
@@ -4795,7 +4836,7 @@ export default function App() {
             )}
             <li>
               <button 
-                onClick={() => { setActiveTab('profile'); setIsMobileMenuOpen(false); }}
+                onClick={() => { navigateToSection('profile'); setIsMobileMenuOpen(false); }}
                 className={`menu-item ${activeTab === 'profile' ? 'active' : ''}`}
                 style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
               >
@@ -4806,7 +4847,7 @@ export default function App() {
             {user.role === 'admin' && (
               <li>
                 <button 
-                  onClick={() => { setActiveTab('admin_panel'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { navigateToSection('admin_panel'); setIsMobileMenuOpen(false); }}
                   className={`menu-item ${activeTab === 'admin_panel' ? 'active' : ''}`}
                   style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left' }}
                 >
@@ -6756,7 +6797,7 @@ Your main tasks are:
                     })
                   }).catch(err => console.error("Error syncing profile with backend:", err));
                 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div className="profile-form-grid">
                     <div className="form-group">
                       <label>Your Full Name</label>
                       <input 
@@ -6780,7 +6821,7 @@ Your main tasks are:
 
                   {(user.role !== 'staff' || user.permissions?.canEditSettings) && (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="profile-form-grid">
                         <div className="form-group">
                           <label>Business Public Name</label>
                           <input 
@@ -6824,7 +6865,7 @@ Your main tasks are:
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="profile-form-grid">
                         <div className="form-group">
                           <label>Business Website</label>
                           <input 
@@ -6946,7 +6987,7 @@ Your main tasks are:
                           )}
                         </div>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="profile-form-grid">
                           <div className="form-group">
                             <label>Google Places API Key</label>
                             <input 
@@ -7599,8 +7640,8 @@ Your main tasks are:
                   <tbody>
                     {adminBusinesses
                       .filter(biz => 
-                        biz.email.toLowerCase().includes(adminSearch.toLowerCase()) || 
-                        (biz.business_name && biz.business_name.toLowerCase().includes(adminSearch.toLowerCase()))
+                        (biz.email || '').toLowerCase().includes((adminSearch || '').toLowerCase()) || 
+                        (biz.business_name && (biz.business_name || '').toLowerCase().includes((adminSearch || '').toLowerCase()))
                       )
                       .map(biz => (
                         <tr key={biz.email} style={{ borderBottom: '1px solid var(--border-light)' }}>
