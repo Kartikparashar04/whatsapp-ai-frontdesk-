@@ -3,6 +3,7 @@ import express from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import compression from 'compression';
 import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
@@ -102,6 +103,9 @@ admin.initializeApp({
 });
 
 const app = express();
+
+// Enable Gzip/Brotli response compression
+app.use(compression());
 
 // Parse json with raw body capture for signature validation
 app.use(express.json({
@@ -313,8 +317,23 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret_123456'
 });
 
-// Serve static files from the built React app (Vite build)
-app.use(express.static(path.join(process.cwd(), 'dist')));
+// Serve static files from the built React app (Vite build) with custom caching headers
+app.use(express.static(path.join(process.cwd(), 'dist'), {
+  maxAge: '1d', // default cache of 1 day for images/favicon
+  setHeaders: (res, filePath) => {
+    const relativePath = path.relative(path.join(process.cwd(), 'dist'), filePath);
+    if (relativePath.startsWith('assets' + path.sep) || relativePath.startsWith('assets/')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (filePath.endsWith('.html')) {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else {
+        // Legal pages (privacy.html, terms.html) - 7 days cache
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+      }
+    }
+  }
+}));
 
 const PORT = process.env.PORT || 3000;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -2938,13 +2957,12 @@ const swaggerSpec = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Catch-all route to serve the React index.html for client-side routing (Single Page App)
-app.get('*all', (req, res, next) => {
+app.get(/(.*)/, (req, res, next) => {
   // If the request starts with /v1/ or is for Meta privacy policy, let it pass through to the routing handlers
   if (req.path.startsWith('/v1/') || req.path === '/privacy') {
     return next();
   }
-  res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+  res.sendFile('index.html', { root: path.join(process.cwd(), 'dist') });
 });
 
 // Global error handler middleware (handles Multer file size errors gracefully)
@@ -2952,7 +2970,7 @@ app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ success: false, error: 'File is too large. Maximum size allowed is 5MB.' });
   }
-  console.error('[Global Error Handler]:', err.message);
+  console.error('[Global Error Handler]:', err.stack || err.message);
   res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
 });
 
