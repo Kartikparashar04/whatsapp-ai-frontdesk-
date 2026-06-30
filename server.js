@@ -882,7 +882,11 @@ async function checkAndSendAppointmentReminders() {
     const twoHoursMs = 2 * 60 * 60 * 1000;
 
     for (const appt of appointments) {
-      const apptTime = new Date(appt.date_time);
+      let apptTimeStr = appt.date_time;
+      if (apptTimeStr && !apptTimeStr.includes('Z') && !apptTimeStr.includes('+') && !apptTimeStr.includes('-')) {
+        apptTimeStr = apptTimeStr + '+05:30';
+      }
+      const apptTime = new Date(apptTimeStr);
       const diffMs = apptTime - now;
 
       // Send reminder if the appointment is in the future and less than 2 hours away
@@ -2689,7 +2693,7 @@ app.delete('/v1/faqs/:id', checkAuth, async (req, res) => {
 app.get('/v1/conversations', checkAuth, async (req, res) => {
   try {
     const emailKey = req.user.ownerEmail;
-    const rows = await db.all('SELECT * FROM conversations WHERE owner_email = ? ORDER BY updated_at DESC', emailKey);
+    const rows = await db.all("SELECT id, owner_email, customer_phone, customer_name, status, last_message, strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at FROM conversations WHERE owner_email = ? ORDER BY updated_at DESC", emailKey);
     return res.status(200).json(rows);
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -2703,7 +2707,7 @@ app.get('/v1/conversations/:id/messages', checkAuth, async (req, res) => {
     if (!conv) {
       return res.status(404).json({ success: false, error: 'Conversation not found.' });
     }
-    const rows = await db.all('SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC', req.params.id);
+    const rows = await db.all("SELECT id, conversation_id, sender, message_text, strftime('%Y-%m-%dT%H:%M:%SZ', timestamp) as timestamp FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC", req.params.id);
     return res.status(200).json(rows);
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
